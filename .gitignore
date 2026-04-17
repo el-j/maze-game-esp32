@@ -1,1 +1,9 @@
-.pio/
+# PlatformIO build artefacts
+packages/firmware/.pio/
+
+# macOS
+.DS_Store
+
+# Editor directories
+.vscode/
+.idea/
