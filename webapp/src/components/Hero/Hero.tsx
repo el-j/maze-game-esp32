@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import MatrixDisplay from "@/components/MatrixDisplay/MatrixDisplay";
 
 const FRAME_TITLE = new Uint8Array([

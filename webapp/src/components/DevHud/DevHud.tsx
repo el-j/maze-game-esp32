@@ -1,4 +1,5 @@
 "use client";
+import type { JSX } from "react";
 import { exportConfigH, type PhysicsConfig } from "@/lib/config";
 import { GameState } from "@/lib/wasm";
 

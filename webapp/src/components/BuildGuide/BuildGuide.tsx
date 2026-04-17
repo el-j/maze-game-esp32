@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 const BOM = [
   {
     qty: 1,

@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import dynamic from "next/dynamic";
 import BuildGuide from "@/components/BuildGuide/BuildGuide";
 import Comparison from "@/components/Comparison/Comparison";

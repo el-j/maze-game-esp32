@@ -41,7 +41,7 @@ const mockCtx = {
 
 HTMLCanvasElement.prototype.getContext = jest.fn(
   () => mockCtx as unknown as CanvasRenderingContext2D
-);
+) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
 // ── window.matchMedia mock ───────────────────────────────────
 Object.defineProperty(window, "matchMedia", {

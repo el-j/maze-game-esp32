@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 const ROW_PINS = [13, 16, 17, 5, 18, 19, 23, 25];
 const COL_PINS = [26, 32, 33, 27, 14, 12, 15, 0];
 

@@ -17,7 +17,7 @@ jest.mock("@/lib/audio", () => {
 
 describe("useAudio", () => {
   beforeEach(() => {
-    (audioPlayer as { _enabled: boolean })._enabled = true;
+    (audioPlayer as unknown as { _enabled: boolean })._enabled = true;
     jest.clearAllMocks();
   });
 

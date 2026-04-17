@@ -1,4 +1,5 @@
 "use client";
+import type { JSX } from "react";
 import { useState } from "react";
 import DevHud from "@/components/DevHud/DevHud";
 import MatrixDisplay from "@/components/MatrixDisplay/MatrixDisplay";

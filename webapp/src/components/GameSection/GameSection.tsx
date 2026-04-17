@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import dynamic from "next/dynamic";
 
 const GameSectionClient = dynamic(() => import("./GameSectionClient"), {
