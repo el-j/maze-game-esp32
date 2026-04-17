@@ -12,11 +12,12 @@
 //
 //  Public API
 //  ──────────
-//  displayInit()            Configure GPIO pins for matrix.
-//  displayStartMux()        Start the background ISR timer.
-//  displayClear()           Turn off every LED.
-//  displayDraw(rows)        Replace the entire frame atomically.
-//  displayPixel(x, y, on)  Set or clear a single pixel.
+//  displayInit()                Configure GPIO pins for matrix.
+//  displayStartMux()            Start the background ISR timer.
+//  displayClear()               Turn off every LED.
+//  displayDraw(rows)            Replace the entire frame atomically.
+//  displayPixel(x, y, on)      Set or clear a single pixel.
+//  displayGetBuffer(out)        Copy the current frame into out[8].
 // ================================================================
 
 #include <Arduino.h>
@@ -41,3 +42,7 @@ void displayDraw(const byte rows[8]);
 // y: row    0–7 (top to bottom)
 // Out-of-range coordinates are silently ignored.
 void displayPixel(int x, int y, bool on = true);
+
+// Copy the current frame into out[8].  Thread-safe snapshot.
+// Used by the debug dashboard to mirror the LED matrix on-screen.
+void displayGetBuffer(uint8_t out[8]);

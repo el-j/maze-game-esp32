@@ -116,3 +116,11 @@ void displayPixel(int x, int y, bool on) {
   else    bitClear(displayBuffer[y], 7 - x);
   portEXIT_CRITICAL(&muxLock);
 }
+
+void displayGetBuffer(uint8_t out[8]) {
+  // Snapshot the live display buffer under the ISR mutex.
+  // The result is a copy; the caller owns it and no lock is held after return.
+  portENTER_CRITICAL(&muxLock);
+  for (int i = 0; i < 8; i++) out[i] = (uint8_t)displayBuffer[i];
+  portEXIT_CRITICAL(&muxLock);
+}

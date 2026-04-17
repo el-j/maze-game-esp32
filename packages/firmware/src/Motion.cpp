@@ -10,10 +10,22 @@
 
 static Adafruit_MPU6050 mpu;
 
+// Guards all sensor reads.  Set to true only after mpu.begin() succeeds.
+// Without this guard, calling mpu.getEvent() on an absent sensor causes
+// undefined behaviour (I2C bus hangs, garbage data, or a crash).
+static bool mpuReady = false;
+
 // Resting-position offsets computed during calibration.
 // Subtracted from every live reading so "flat" = exactly 0 m/s².
 static float offsetX = 0.0f;
 static float offsetY = 0.0f;
+
+// Cached raw readings from the last sensor poll.
+// Exposed via motionGetLastRaw() for diagnostics and the debug dashboard.
+// az should read ~9.81 m/s² when the board is lying flat (Earth's gravity).
+static float lastRawAx = 0.0f;
+static float lastRawAy = 0.0f;
+static float lastRawAz = 0.0f;
 
 // ── Helper: raw axes (before offset subtraction) ────────────
 // The MPU6050 is mounted on the GY-521 break-out board with its
@@ -28,6 +40,13 @@ static void rawAxes(float &ax, float &ay) {
   mpu.getEvent(&accel, &gyro, &temp);
   ax = -accel.acceleration.y; // swap & negate
   ay =  accel.acceleration.x; // swap
+
+  // Cache all three axes so the debug dashboard can show them.
+  // az is the vertical axis; ~9.81 m/s² on a flat surface confirms the
+  // sensor is alive and oriented correctly.
+  lastRawAx = ax;
+  lastRawAy = ay;
+  lastRawAz = accel.acceleration.z;
 }
 
 // ── Public API ──────────────────────────────────────────────
@@ -35,14 +54,24 @@ static void rawAxes(float &ax, float &ay) {
 void motionInit() {
   Wire.begin(); // Default SDA=GPIO21, SCL=GPIO22 on ESP32
   if (!mpu.begin()) {
-    // Sensor not found – print instructions and halt.
-    // Common causes: wrong SDA/SCL pins, 5 V on VCC (must be 3.3 V),
-    // or a loose jumper wire.
+    // Sensor not found.  Common causes:
+    //   • GY-521 VCC wired to 5 V instead of 3.3 V (destroys the sensor)
+    //   • SDA and SCL swapped  (GPIO 21 ↔ GPIO 22)
+    //   • Loose or missing jumper wire
+    //   • Incorrect I2C address (AD0 pulled HIGH gives 0x69 instead of 0x68)
     Serial.println("ERROR: MPU6050 not found.");
-    Serial.println("  Check: GY-521 VCC → ESP32 3V3 (NOT 5V!)");
-    Serial.println("  Check: SDA → GPIO 21,  SCL → GPIO 22");
+    Serial.println("  Fix 1: GY-521 VCC must go to ESP32 3V3  (NOT 5V)");
+    Serial.println("  Fix 2: SDA → GPIO 21   SCL → GPIO 22");
+    Serial.println("  Fix 3: Re-seat all I2C jumper wires");
+#ifdef DEBUG_MODE
+    // In debug mode keep running so the dashboard can show the error banner.
+    // The game will not move (motionGetAx/Ay return 0 when mpuReady=false).
+    Serial.println("  [DEBUG] Continuing without IMU – check dashboard for status.");
+    return;
+#else
     Serial.println("Halting.");
     while (true) delay(10);
+#endif
   }
 
   // ±2 g range gives the best resolution for subtle tilt angles.
@@ -52,10 +81,13 @@ void motionInit() {
   // noticeable lag.  Raise to MPU6050_BAND_44_HZ if too sluggish.
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
 
+  mpuReady = true;
   Serial.println("MPU6050 found.");
 }
 
 void motionCalibrate() {
+  if (!mpuReady) return; // skip if sensor is absent
+
   Serial.print("Calibrating IMU – keep the board FLAT... ");
   float sumX = 0.0f, sumY = 0.0f;
 
@@ -75,6 +107,7 @@ void motionCalibrate() {
 }
 
 float motionGetAx() {
+  if (!mpuReady) return 0.0f;
   float ax, ay;
   rawAxes(ax, ay);
   float calibrated = ax - offsetX;
@@ -83,8 +116,15 @@ float motionGetAx() {
 }
 
 float motionGetAy() {
+  if (!mpuReady) return 0.0f;
   float ax, ay;
   rawAxes(ax, ay);
   float calibrated = ay - offsetY;
   return (fabsf(calibrated) < DEADZONE) ? 0.0f : calibrated;
+}
+
+void motionGetLastRaw(float &ax, float &ay, float &az) {
+  ax = lastRawAx;
+  ay = lastRawAy;
+  az = lastRawAz;
 }

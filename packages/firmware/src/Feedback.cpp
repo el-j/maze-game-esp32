@@ -92,14 +92,17 @@ static const Note    *currentMelody = nullptr;
 static uint8_t        melodyLen     = 0;
 static uint8_t        melodyIdx     = 0;
 static unsigned long  noteEnd       = 0;
+static uint16_t       activeNoteHz  = 0;  // frequency currently playing (0 = silent)
 
 // Motor state
 static bool          motorActive = false;
 static unsigned long motorEnd    = 0;
+static uint8_t       motorDuty   = 0;  // duty currently applied (0 = off)
 
 // ── Private helpers ─────────────────────────────────────────
 
 static void startNote(const Note &n) {
+  activeNoteHz = n.frequency;
   if (n.frequency == 0) {
     noTone(BUZZER_PIN); // rest = silence
   } else {

@@ -20,13 +20,15 @@
 //
 //  Public API
 //  ──────────
-//  feedbackInit()        Attach motor pin to LEDC PWM channel.
-//  feedbackUpdate()      Advance sequencer; stop motor if done.
-//                        Must be called every game loop tick.
-//  feedbackPlayBoot()    Short "ready" jingle played once at startup.
-//  feedbackPlayCrash()   Descending thump + haptic rumble.
-//  feedbackPlayLevelUp() Ascending arpeggio + sharp haptic buzz.
-//  feedbackPlayVictory() Full victory fanfare + strong haptic shake.
+//  feedbackInit()         Attach motor pin to LEDC PWM channel.
+//  feedbackUpdate()       Advance sequencer; stop motor if done.
+//                         Must be called every game loop tick.
+//  feedbackPlayBoot()     Short "ready" jingle played once at startup.
+//  feedbackPlayCrash()    Descending thump + haptic rumble.
+//  feedbackPlayLevelUp()  Ascending arpeggio + sharp haptic buzz.
+//  feedbackPlayVictory()  Full victory fanfare + strong haptic shake.
+//  feedbackCurrentNote()  Frequency (Hz) of the note playing now; 0 = silent.
+//  feedbackMotorDuty()    Current motor PWM duty (0–255); 0 = off.
 // ================================================================
 
 #include <Arduino.h>
@@ -37,3 +39,7 @@ void feedbackPlayBoot();
 void feedbackPlayCrash();
 void feedbackPlayLevelUp();
 void feedbackPlayVictory();
+
+// Diagnostics – used by the debug dashboard.
+uint16_t feedbackCurrentNote(); // 0 = silent
+uint8_t  feedbackMotorDuty();   // 0 = off
