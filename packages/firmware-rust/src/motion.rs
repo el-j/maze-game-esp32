@@ -24,6 +24,8 @@ pub mod mock {
     }
 
     impl Motion for MockMotion {
-        fn read(&mut self) -> Tilt { self.tilt }
+        fn read(&mut self) -> Tilt {
+            self.tilt
+        }
     }
 }

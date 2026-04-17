@@ -6,58 +6,56 @@
 
 use crate::config;
 use crate::display::{Display, DisplayBuffer};
+use crate::feedback::FeedbackHal;
 use crate::levels::{self, LEVELS};
 use crate::motion::Motion;
-use crate::feedback::FeedbackHal;
 
 // ── Pre-defined display frames ─────────────────────────────────
-const FRAME_TITLE: [u8; 8] = [
-    0x00, 0x00, 0x24, 0x00, 0x00, 0x42, 0x3C, 0x00,
-];
-const FRAME_GAMEOVER: [u8; 8] = [
-    0x00, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x00,
-];
-const FRAME_VICTORY: [u8; 8] = [
-    0x00, 0x01, 0x02, 0x84, 0x48, 0x30, 0x00, 0x00,
-];
+const FRAME_TITLE: [u8; 8] = [0x00, 0x00, 0x24, 0x00, 0x00, 0x42, 0x3C, 0x00];
+const FRAME_GAMEOVER: [u8; 8] = [0x00, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x00];
+const FRAME_VICTORY: [u8; 8] = [0x00, 0x01, 0x02, 0x84, 0x48, 0x30, 0x00, 0x00];
 
 /// Game state enum – exact analogue of the C++ enum.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
-    Title    = 0,
-    Playing  = 1,
-    Crashed  = 2,
+    Title = 0,
+    Playing = 1,
+    Crashed = 2,
     GameOver = 3,
-    Victory  = 4,
+    Victory = 4,
 }
 
 pub struct GameEngine<D: Display, M: Motion, F: FeedbackHal> {
-    pub display:  D,
-    pub motion:   M,
+    pub display: D,
+    pub motion: M,
     pub feedback: F,
 
-    state:         State,
-    lives:         i32,
-    level:         usize,
+    state: State,
+    lives: i32,
+    level: usize,
 
-    player_x:      f32,
-    player_y:      f32,
-    vel_x:         f32,
-    vel_y:         f32,
+    player_x: f32,
+    player_y: f32,
+    vel_x: f32,
+    vel_y: f32,
 
     crashed_at_ms: u64,
-    buf:           DisplayBuffer,
+    buf: DisplayBuffer,
 }
 
 impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     pub fn new(display: D, motion: M, feedback: F) -> Self {
         let mut engine = Self {
-            display, motion, feedback,
+            display,
+            motion,
+            feedback,
             state: State::Title,
             lives: config::STARTING_LIVES,
             level: 0,
-            player_x: 1.0, player_y: 1.0,
-            vel_x: 0.0, vel_y: 0.0,
+            player_x: 1.0,
+            player_y: 1.0,
+            vel_x: 0.0,
+            vel_y: 0.0,
             crashed_at_ms: 0,
             buf: DisplayBuffer::default(),
         };
@@ -66,9 +64,9 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     }
 
     pub fn init(&mut self, now_ms: u64) {
-        self.state   = State::Title;
-        self.lives   = config::STARTING_LIVES;
-        self.level   = 0;
+        self.state = State::Title;
+        self.lives = config::STARTING_LIVES;
+        self.level = 0;
         self.respawn();
         self.feedback.play_boot(now_ms);
         self.buf.load(&FRAME_TITLE);
@@ -79,8 +77,8 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     fn respawn(&mut self) {
         self.player_x = levels::START_X[self.level] as f32;
         self.player_y = levels::START_Y[self.level] as f32;
-        self.vel_x    = 0.0;
-        self.vel_y    = 0.0;
+        self.vel_x = 0.0;
+        self.vel_y = 0.0;
     }
 
     /// Advance state machine by one tick.
@@ -89,11 +87,11 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     pub fn tick(&mut self, btn: bool, now_ms: u64) {
         self.feedback.update(now_ms);
         match self.state {
-            State::Title    => self.tick_title(btn, now_ms),
-            State::Playing  => self.tick_playing(now_ms),
-            State::Crashed  => self.tick_crashed(now_ms),
+            State::Title => self.tick_title(btn, now_ms),
+            State::Playing => self.tick_playing(now_ms),
+            State::Crashed => self.tick_crashed(now_ms),
             State::GameOver => self.tick_gameover(btn),
-            State::Victory  => self.tick_victory(btn),
+            State::Victory => self.tick_victory(btn),
         }
     }
 
@@ -121,7 +119,8 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         let mut crashed = false;
 
         // X-axis collision
-        let next_x = if next_x < 0.0 || next_x >= 8.0
+        let next_x = if next_x < 0.0
+            || next_x >= 8.0
             || levels::is_wall(self.level, next_x as usize, self.player_y as usize)
         {
             self.vel_x = -self.vel_x * 0.5;
@@ -132,7 +131,8 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         };
 
         // Y-axis collision
-        let next_y = if next_y < 0.0 || next_y >= 8.0
+        let next_y = if next_y < 0.0
+            || next_y >= 8.0
             || levels::is_wall(self.level, self.player_x as usize, next_y as usize)
         {
             self.vel_y = -self.vel_y * 0.5;
@@ -206,29 +206,43 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         self.buf.load(&FRAME_GAMEOVER);
         let buf = self.buf;
         self.display.draw(&buf);
-        if btn { self.state = State::Title; }
+        if btn {
+            self.state = State::Title;
+        }
     }
 
     fn tick_victory(&mut self, btn: bool) {
         self.buf.load(&FRAME_VICTORY);
         let buf = self.buf;
         self.display.draw(&buf);
-        if btn { self.state = State::Title; }
+        if btn {
+            self.state = State::Title;
+        }
     }
 
     // ── Diagnostic getters ────────────────────────────────────
-    pub fn state(&self)    -> State  { self.state }
-    pub fn lives(&self)    -> i32    { self.lives }
-    pub fn level(&self)    -> usize  { self.level }
-    pub fn player_x(&self) -> f32    { self.player_x }
-    pub fn player_y(&self) -> f32    { self.player_y }
+    pub fn state(&self) -> State {
+        self.state
+    }
+    pub fn lives(&self) -> i32 {
+        self.lives
+    }
+    pub fn level(&self) -> usize {
+        self.level
+    }
+    pub fn player_x(&self) -> f32 {
+        self.player_x
+    }
+    pub fn player_y(&self) -> f32 {
+        self.player_y
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::motion::{Tilt, mock::MockMotion};
+    use crate::motion::{mock::MockMotion, Tilt};
 
     // ── Test doubles ─────────────────────────────────────────
 
@@ -242,11 +256,19 @@ mod tests {
         pub last: DisplayBuffer,
     }
     impl Display for RecordingDisplay {
-        fn draw(&mut self, buf: &DisplayBuffer) { self.last = *buf; }
-        fn clear(&mut self) { self.last = DisplayBuffer::default(); }
+        fn draw(&mut self, buf: &DisplayBuffer) {
+            self.last = *buf;
+        }
+        fn clear(&mut self) {
+            self.last = DisplayBuffer::default();
+        }
     }
     impl RecordingDisplay {
-        fn new() -> Self { Self { last: DisplayBuffer::default() } }
+        fn new() -> Self {
+            Self {
+                last: DisplayBuffer::default(),
+            }
+        }
     }
 
     struct NullFeedback;
@@ -259,25 +281,39 @@ mod tests {
     }
 
     struct RecordingFeedback {
-        pub crashes:   u32,
+        pub crashes: u32,
         pub level_ups: u32,
         pub victories: u32,
     }
     impl RecordingFeedback {
-        fn new() -> Self { Self { crashes: 0, level_ups: 0, victories: 0 } }
+        fn new() -> Self {
+            Self {
+                crashes: 0,
+                level_ups: 0,
+                victories: 0,
+            }
+        }
     }
     impl FeedbackHal for RecordingFeedback {
         fn update(&mut self, _: u64) {}
         fn play_boot(&mut self, _: u64) {}
-        fn play_crash(&mut self, _: u64)    { self.crashes    += 1; }
-        fn play_level_up(&mut self, _: u64) { self.level_ups  += 1; }
-        fn play_victory(&mut self, _: u64)  { self.victories  += 1; }
+        fn play_crash(&mut self, _: u64) {
+            self.crashes += 1;
+        }
+        fn play_level_up(&mut self, _: u64) {
+            self.level_ups += 1;
+        }
+        fn play_victory(&mut self, _: u64) {
+            self.victories += 1;
+        }
     }
 
     fn flat_engine() -> GameEngine<NullDisplay, MockMotion, NullFeedback> {
         GameEngine::new(
             NullDisplay,
-            MockMotion { tilt: Tilt { ax: 0.0, ay: 0.0 } },
+            MockMotion {
+                tilt: Tilt { ax: 0.0, ay: 0.0 },
+            },
             NullFeedback,
         )
     }
@@ -309,10 +345,12 @@ mod tests {
     #[test]
     fn flat_tilt_keeps_player_near_start() {
         let mut e = flat_engine();
-        e.tick(true, 0);  // start game
+        e.tick(true, 0); // start game
         let x0 = e.player_x();
         let y0 = e.player_y();
-        for _ in 0..10 { e.tick(false, 0); }
+        for _ in 0..10 {
+            e.tick(false, 0);
+        }
         // With zero tilt, velocity stays near zero; player should barely move
         assert!((e.player_x() - x0).abs() < 0.1);
         assert!((e.player_y() - y0).abs() < 0.1);
@@ -322,20 +360,30 @@ mod tests {
     fn wall_crash_decrements_lives_and_transitions_to_crashed() {
         let mut e = GameEngine::new(
             NullDisplay,
-            MockMotion { tilt: Tilt { ax: 10.0, ay: 0.0 } }, // strong rightward push
+            MockMotion {
+                tilt: Tilt { ax: 10.0, ay: 0.0 },
+            }, // strong rightward push
             NullFeedback,
         );
         e.tick(true, 0); // start
-        // Drive into a wall
-        for _ in 0..100 { e.tick(false, 0); }
-        assert!(e.lives() < config::STARTING_LIVES || e.state() == State::Crashed || e.state() == State::GameOver);
+                         // Drive into a wall
+        for _ in 0..100 {
+            e.tick(false, 0);
+        }
+        assert!(
+            e.lives() < config::STARTING_LIVES
+                || e.state() == State::Crashed
+                || e.state() == State::GameOver
+        );
     }
 
     #[test]
     fn losing_all_lives_reaches_gameover() {
         let mut e = GameEngine::new(
             NullDisplay,
-            MockMotion { tilt: Tilt { ax: 10.0, ay: 0.0 } },
+            MockMotion {
+                tilt: Tilt { ax: 10.0, ay: 0.0 },
+            },
             NullFeedback,
         );
         e.tick(true, 0);
@@ -344,7 +392,9 @@ mod tests {
         for _ in 0..5000 {
             t += 20;
             e.tick(false, t);
-            if e.state() == State::GameOver { break; }
+            if e.state() == State::GameOver {
+                break;
+            }
         }
         assert_eq!(e.state(), State::GameOver);
     }
@@ -371,8 +421,8 @@ mod tests {
     fn crash_display_auto_resumes_after_timeout() {
         let mut e = flat_engine();
         e.tick(true, 0); // start
-        // Force crashed state
-        e.state         = State::Crashed;
+                         // Force crashed state
+        e.state = State::Crashed;
         e.crashed_at_ms = 0;
         e.tick(false, config::CRASH_DISPLAY_MS as u64 + 1);
         assert_eq!(e.state(), State::Playing);
@@ -382,7 +432,9 @@ mod tests {
     fn feedback_play_crash_called_on_wall_hit() {
         let mut e = GameEngine::new(
             NullDisplay,
-            MockMotion { tilt: Tilt { ax: 20.0, ay: 0.0 } },
+            MockMotion {
+                tilt: Tilt { ax: 20.0, ay: 0.0 },
+            },
             RecordingFeedback::new(),
         );
         e.tick(true, 0);
@@ -390,7 +442,9 @@ mod tests {
         for _ in 0..200 {
             t += 20;
             e.tick(false, t);
-            if e.feedback.crashes > 0 { break; }
+            if e.feedback.crashes > 0 {
+                break;
+            }
         }
         assert!(e.feedback.crashes > 0);
     }

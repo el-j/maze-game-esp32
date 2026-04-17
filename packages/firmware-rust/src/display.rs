@@ -15,14 +15,21 @@ impl DisplayBuffer {
     /// Set or clear a single pixel (x = col, y = row).
     /// Out-of-range coordinates are silently ignored.
     pub fn set_pixel(&mut self, x: usize, y: usize, on: bool) {
-        if x >= 8 || y >= 8 { return; }
-        if on { self.rows[y] |=  1 << (7 - x); }
-        else  { self.rows[y] &= !(1 << (7 - x)); }
+        if x >= 8 || y >= 8 {
+            return;
+        }
+        if on {
+            self.rows[y] |= 1 << (7 - x);
+        } else {
+            self.rows[y] &= !(1 << (7 - x));
+        }
     }
 
     /// Read a pixel.
     pub fn get_pixel(&self, x: usize, y: usize) -> bool {
-        if x >= 8 || y >= 8 { return false; }
+        if x >= 8 || y >= 8 {
+            return false;
+        }
         (self.rows[y] >> (7 - x)) & 1 == 1
     }
 
@@ -98,7 +105,11 @@ mod tests {
     #[test]
     fn set_all_64_pixels() {
         let mut buf = DisplayBuffer::default();
-        for r in 0..8 { for c in 0..8 { buf.set_pixel(c, r, true); } }
+        for r in 0..8 {
+            for c in 0..8 {
+                buf.set_pixel(c, r, true);
+            }
+        }
         assert_eq!(buf.rows, [0xFF; 8]);
     }
 

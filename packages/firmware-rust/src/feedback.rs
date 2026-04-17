@@ -14,80 +14,95 @@ pub struct Note {
 /// Named note frequencies (Hz).
 pub mod notes {
     pub const REST: u16 = 0;
-    pub const E3:  u16 = 165;
-    pub const A3:  u16 = 220;
-    pub const C4:  u16 = 262;
-    pub const E4:  u16 = 330;
-    pub const G4:  u16 = 392;
-    pub const C5:  u16 = 523;
-    pub const E5:  u16 = 659;
-    pub const G5:  u16 = 784;
-    pub const B5:  u16 = 988;
-    pub const C6:  u16 = 1047;
-    pub const E6:  u16 = 1319;
+    pub const E3: u16 = 165;
+    pub const A3: u16 = 220;
+    pub const C4: u16 = 262;
+    pub const E4: u16 = 330;
+    pub const G4: u16 = 392;
+    pub const C5: u16 = 523;
+    pub const E5: u16 = 659;
+    pub const G5: u16 = 784;
+    pub const B5: u16 = 988;
+    pub const C6: u16 = 1047;
+    pub const E6: u16 = 1319;
 }
 
 use notes::*;
 
 static MELODY_BOOT: &[Note] = &[
-    Note{hz:G4,ms:80}, Note{hz:REST,ms:20},
-    Note{hz:C5,ms:80}, Note{hz:REST,ms:20},
-    Note{hz:E5,ms:80}, Note{hz:REST,ms:20},
-    Note{hz:G5,ms:160},
+    Note { hz: G4, ms: 80 },
+    Note { hz: REST, ms: 20 },
+    Note { hz: C5, ms: 80 },
+    Note { hz: REST, ms: 20 },
+    Note { hz: E5, ms: 80 },
+    Note { hz: REST, ms: 20 },
+    Note { hz: G5, ms: 160 },
 ];
 
 static MELODY_CRASH: &[Note] = &[
-    Note{hz:A3,ms:80}, Note{hz:REST,ms:20},
-    Note{hz:E3,ms:130},
+    Note { hz: A3, ms: 80 },
+    Note { hz: REST, ms: 20 },
+    Note { hz: E3, ms: 130 },
 ];
 
 static MELODY_LEVELUP: &[Note] = &[
-    Note{hz:C5,ms:90},  Note{hz:REST,ms:25},
-    Note{hz:E5,ms:90},  Note{hz:REST,ms:25},
-    Note{hz:G5,ms:90},  Note{hz:REST,ms:25},
-    Note{hz:C6,ms:280},
+    Note { hz: C5, ms: 90 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: E5, ms: 90 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: G5, ms: 90 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: C6, ms: 280 },
 ];
 
 static MELODY_VICTORY: &[Note] = &[
-    Note{hz:C5,ms:100}, Note{hz:REST,ms:25},
-    Note{hz:E5,ms:100}, Note{hz:REST,ms:25},
-    Note{hz:G5,ms:120}, Note{hz:REST,ms:25},
-    Note{hz:E5,ms:90},  Note{hz:REST,ms:20},
-    Note{hz:C6,ms:120}, Note{hz:REST,ms:40},
-    Note{hz:G5,ms:120}, Note{hz:REST,ms:25},
-    Note{hz:B5,ms:120}, Note{hz:REST,ms:25},
-    Note{hz:E6,ms:500},
+    Note { hz: C5, ms: 100 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: E5, ms: 100 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: G5, ms: 120 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: E5, ms: 90 },
+    Note { hz: REST, ms: 20 },
+    Note { hz: C6, ms: 120 },
+    Note { hz: REST, ms: 40 },
+    Note { hz: G5, ms: 120 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: B5, ms: 120 },
+    Note { hz: REST, ms: 25 },
+    Note { hz: E6, ms: 500 },
 ];
 
 /// Tone output hardware trait.
 pub trait BuzzerHal {
-    fn play_tone(&mut self, hz: u16);   // 0 = silence
+    fn play_tone(&mut self, hz: u16); // 0 = silence
     fn stop_tone(&mut self);
 }
 
 /// Motor hardware trait.
 pub trait MotorHal {
-    fn set_duty(&mut self, duty: u8);   // 0 = off, 255 = full
+    fn set_duty(&mut self, duty: u8); // 0 = off, 255 = full
 }
 
 /// Non-blocking melody sequencer + haptic motor driver.
 pub struct Feedback<B: BuzzerHal, M: MotorHal> {
     pub buzzer: B,
-    pub motor:  M,
+    pub motor: M,
 
-    melody:      &'static [Note],
-    melody_idx:  usize,
+    melody: &'static [Note],
+    melody_idx: usize,
     note_end_ms: u64,
-    active_hz:   u16,
+    active_hz: u16,
 
     motor_end_ms: u64,
-    motor_duty:   u8,
+    motor_duty: u8,
 }
 
 impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
     pub fn new(buzzer: B, motor: M) -> Self {
         Self {
-            buzzer, motor,
+            buzzer,
+            motor,
             melody: &[],
             melody_idx: 0,
             note_end_ms: 0,
@@ -99,13 +114,16 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
 
     fn schedule_note(&mut self, note: &Note, start_ms: u64) {
         self.active_hz = note.hz;
-        if note.hz == 0 { self.buzzer.stop_tone(); }
-        else            { self.buzzer.play_tone(note.hz); }
+        if note.hz == 0 {
+            self.buzzer.stop_tone();
+        } else {
+            self.buzzer.play_tone(note.hz);
+        }
         self.note_end_ms = start_ms + note.ms as u64;
     }
 
     fn start_melody(&mut self, notes: &'static [Note], now_ms: u64) {
-        self.melody     = notes;
+        self.melody = notes;
         self.melody_idx = 0;
         if !notes.is_empty() {
             let first = notes[0];
@@ -115,7 +133,7 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
 
     fn start_motor(&mut self, duty: u8, duration_ms: u32, now_ms: u64) {
         self.motor.set_duty(duty);
-        self.motor_duty   = duty;
+        self.motor_duty = duty;
         self.motor_end_ms = now_ms + duration_ms as u64;
     }
 
@@ -138,7 +156,7 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
             } else {
                 self.buzzer.stop_tone();
                 self.active_hz = 0;
-                self.melody    = &[];
+                self.melody = &[];
                 break;
             }
         }
@@ -164,9 +182,13 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
     }
 
     /// Current note frequency; 0 = silent.
-    pub fn current_note(&self) -> u16 { self.active_hz }
+    pub fn current_note(&self) -> u16 {
+        self.active_hz
+    }
     /// Current motor duty; 0 = off.
-    pub fn motor_duty(&self)   -> u8  { self.motor_duty }
+    pub fn motor_duty(&self) -> u8 {
+        self.motor_duty
+    }
 }
 
 // ── Feedback HAL trait (used by GameEngine) ─────────────────
@@ -179,11 +201,21 @@ pub trait FeedbackHal {
 }
 
 impl<B: BuzzerHal, M: MotorHal> FeedbackHal for Feedback<B, M> {
-    fn update(&mut self, now_ms: u64)        { Feedback::update(self, now_ms); }
-    fn play_boot(&mut self, now_ms: u64)     { Feedback::play_boot(self, now_ms); }
-    fn play_crash(&mut self, now_ms: u64)    { Feedback::play_crash(self, now_ms); }
-    fn play_level_up(&mut self, now_ms: u64) { Feedback::play_level_up(self, now_ms); }
-    fn play_victory(&mut self, now_ms: u64)  { Feedback::play_victory(self, now_ms); }
+    fn update(&mut self, now_ms: u64) {
+        Feedback::update(self, now_ms);
+    }
+    fn play_boot(&mut self, now_ms: u64) {
+        Feedback::play_boot(self, now_ms);
+    }
+    fn play_crash(&mut self, now_ms: u64) {
+        Feedback::play_crash(self, now_ms);
+    }
+    fn play_level_up(&mut self, now_ms: u64) {
+        Feedback::play_level_up(self, now_ms);
+    }
+    fn play_victory(&mut self, now_ms: u64) {
+        Feedback::play_victory(self, now_ms);
+    }
 }
 
 #[cfg(test)]
@@ -192,16 +224,29 @@ mod tests {
 
     // ── Mock buzzer / motor ───────────────────────────────────
     #[derive(Default)]
-    struct MockBuzzer { pub last_hz: u16, pub stopped: bool }
+    struct MockBuzzer {
+        pub last_hz: u16,
+        pub stopped: bool,
+    }
     impl BuzzerHal for MockBuzzer {
-        fn play_tone(&mut self, hz: u16) { self.last_hz = hz; self.stopped = false; }
-        fn stop_tone(&mut self)          { self.last_hz = 0;  self.stopped = true;  }
+        fn play_tone(&mut self, hz: u16) {
+            self.last_hz = hz;
+            self.stopped = false;
+        }
+        fn stop_tone(&mut self) {
+            self.last_hz = 0;
+            self.stopped = true;
+        }
     }
 
     #[derive(Default)]
-    struct MockMotor { pub duty: u8 }
+    struct MockMotor {
+        pub duty: u8,
+    }
     impl MotorHal for MockMotor {
-        fn set_duty(&mut self, d: u8) { self.duty = d; }
+        fn set_duty(&mut self, d: u8) {
+            self.duty = d;
+        }
     }
 
     fn make() -> Feedback<MockBuzzer, MockMotor> {
@@ -240,8 +285,8 @@ mod tests {
         let mut fb = make();
         // MELODY_CRASH is only two notes: A3(80) + REST(20) + E3(130)
         fb.play_crash(0);
-        fb.update(100);  // advance past A3+REST
-        fb.update(250);  // advance past E3 (total 230 ms)
+        fb.update(100); // advance past A3+REST
+        fb.update(250); // advance past E3 (total 230 ms)
         assert_eq!(fb.current_note(), 0);
     }
 
@@ -273,7 +318,7 @@ mod tests {
     fn rest_note_calls_stop_tone() {
         let mut fb = make();
         fb.play_boot(0);
-        fb.update(80);  // advance past G4(80ms); next note is REST
+        fb.update(80); // advance past G4(80ms); next note is REST
         assert!(fb.buzzer.stopped);
     }
 }

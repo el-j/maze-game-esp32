@@ -33,14 +33,16 @@ pub const LEVELS: [[u8; 8]; NUM_LEVELS] = [
 
 pub const START_X: [usize; NUM_LEVELS] = [1, 1, 1];
 pub const START_Y: [usize; NUM_LEVELS] = [1, 1, 1];
-pub const GOAL_X:  [usize; NUM_LEVELS] = [6, 6, 6];
-pub const GOAL_Y:  [usize; NUM_LEVELS] = [6, 6, 6];
+pub const GOAL_X: [usize; NUM_LEVELS] = [6, 6, 6];
+pub const GOAL_Y: [usize; NUM_LEVELS] = [6, 6, 6];
 
 /// Returns true if the cell (col, row) is a wall in the given level.
 /// Out-of-bounds coordinates are always walls.
 #[inline(always)]
 pub fn is_wall(level: usize, col: usize, row: usize) -> bool {
-    if col >= 8 || row >= 8 { return true; }
+    if col >= 8 || row >= 8 {
+        return true;
+    }
     (LEVELS[level][row] >> (7 - col)) & 1 == 1
 }
 
@@ -54,9 +56,11 @@ mod tests {
         let mut queue = VecDeque::new();
         visited[sy][sx] = true;
         queue.push_back((sx, sy));
-        let dirs: [(i32, i32); 4] = [(1,0),(-1,0),(0,1),(0,-1)];
+        let dirs: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         while let Some((x, y)) = queue.pop_front() {
-            if x == gx && y == gy { return true; }
+            if x == gx && y == gy {
+                return true;
+            }
             for (dx, dy) in &dirs {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
@@ -77,11 +81,20 @@ mod tests {
         for lv in 0..NUM_LEVELS {
             for c in 0..8usize {
                 assert!(is_wall(lv, c, 0), "level {lv} top row col {c} must be wall");
-                assert!(is_wall(lv, c, 7), "level {lv} bottom row col {c} must be wall");
+                assert!(
+                    is_wall(lv, c, 7),
+                    "level {lv} bottom row col {c} must be wall"
+                );
             }
             for r in 0..8usize {
-                assert!(is_wall(lv, 0, r), "level {lv} left col row {r} must be wall");
-                assert!(is_wall(lv, 7, r), "level {lv} right col row {r} must be wall");
+                assert!(
+                    is_wall(lv, 0, r),
+                    "level {lv} left col row {r} must be wall"
+                );
+                assert!(
+                    is_wall(lv, 7, r),
+                    "level {lv} right col row {r} must be wall"
+                );
             }
         }
     }
@@ -89,8 +102,14 @@ mod tests {
     #[test]
     fn start_and_goal_cells_are_open() {
         for lv in 0..NUM_LEVELS {
-            assert!(!is_wall(lv, START_X[lv], START_Y[lv]), "level {lv} start must be open");
-            assert!(!is_wall(lv, GOAL_X[lv],  GOAL_Y[lv]),  "level {lv} goal must be open");
+            assert!(
+                !is_wall(lv, START_X[lv], START_Y[lv]),
+                "level {lv} start must be open"
+            );
+            assert!(
+                !is_wall(lv, GOAL_X[lv], GOAL_Y[lv]),
+                "level {lv} goal must be open"
+            );
         }
     }
 

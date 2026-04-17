@@ -5,8 +5,8 @@
 //! `main.rs` wires this to real hardware using `esp-hal`.
 
 pub mod config;
-pub mod levels;
 pub mod display;
-pub mod motion;
 pub mod feedback;
 pub mod game;
+pub mod levels;
+pub mod motion;

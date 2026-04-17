@@ -50,15 +50,19 @@ impl Display for HardwareDisplay {
         }
     }
     fn clear(&mut self) {
-        for r in &mut self.rows { r.set_low(); }
-        for c in &mut self.cols { c.set_high(); }
+        for r in &mut self.rows {
+            r.set_low();
+        }
+        for c in &mut self.cols {
+            c.set_high();
+        }
     }
 }
 
 // ── Hardware Buzzer ───────────────────────────────────────────
 struct HardwareBuzzer<'d> {
     channel: channel::Channel<'d, LowSpeed, esp_hal::gpio::GpioPin<2>>,
-    timer:   &'d mut timer::Timer<'d, LowSpeed>,
+    timer: &'d mut timer::Timer<'d, LowSpeed>,
 }
 
 impl BuzzerHal for HardwareBuzzer<'_> {
@@ -93,7 +97,7 @@ impl MotorHal for HardwareMotor<'_> {
 
 // ── Hardware Motion ───────────────────────────────────────────
 struct HardwareMotion<'d> {
-    i2c:      I2C<'d, esp_hal::peripherals::I2C0>,
+    i2c: I2C<'d, esp_hal::peripherals::I2C0>,
     offset_x: f32,
     offset_y: f32,
 }
@@ -146,21 +150,20 @@ fn main() -> ! {
     let mut delay = Delay::new(&clocks);
 
     // Read button
-    let button = esp_hal::gpio::Input::new(
-        io.pins.gpio34,
-        esp_hal::gpio::Pull::None,
-    );
+    let button = esp_hal::gpio::Input::new(io.pins.gpio34, esp_hal::gpio::Pull::None);
 
     // LEDC for motor and buzzer
     let mut ledc = Ledc::new(peripherals.LEDC, &clocks);
     ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
 
     let mut lstimer0 = ledc.get_timer::<LowSpeed>(timer::Number::Timer0);
-    lstimer0.configure(timer::config::Config {
-        duty: timer::config::Duty::Duty8Bit,
-        clock_source: timer::LSClockSource::APBClk,
-        frequency: 5000u32.Hz(),
-    }).unwrap();
+    lstimer0
+        .configure(timer::config::Config {
+            duty: timer::config::Duty::Duty8Bit,
+            clock_source: timer::LSClockSource::APBClk,
+            frequency: 5000u32.Hz(),
+        })
+        .unwrap();
 
     // Build the engine
     let mut engine = GameEngine::new(
@@ -169,7 +172,7 @@ fn main() -> ! {
                 Output::new(io.pins.gpio13, Level::Low),
                 Output::new(io.pins.gpio16, Level::Low),
                 Output::new(io.pins.gpio17, Level::Low),
-                Output::new(io.pins.gpio5,  Level::Low),
+                Output::new(io.pins.gpio5, Level::Low),
                 Output::new(io.pins.gpio18, Level::Low),
                 Output::new(io.pins.gpio19, Level::Low),
                 Output::new(io.pins.gpio23, Level::Low),
@@ -183,7 +186,7 @@ fn main() -> ! {
                 Output::new(io.pins.gpio14, Level::High),
                 Output::new(io.pins.gpio12, Level::High),
                 Output::new(io.pins.gpio15, Level::High),
-                Output::new(io.pins.gpio0,  Level::High),
+                Output::new(io.pins.gpio0, Level::High),
             ],
         },
         {
@@ -194,7 +197,11 @@ fn main() -> ! {
                 400u32.kHz(),
                 &clocks,
             );
-            let mut m = HardwareMotion { i2c, offset_x: 0.0, offset_y: 0.0 };
+            let mut m = HardwareMotion {
+                i2c,
+                offset_x: 0.0,
+                offset_y: 0.0,
+            };
             m.calibrate(&mut delay);
             m
         },
