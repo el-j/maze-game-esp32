@@ -5,6 +5,7 @@ const LINKS = [
   { href: "#how-it-works", label: "How It Works" },
   { href: "#build", label: "Build" },
   { href: "#wiring", label: "Wiring" },
+  { href: "#comparison", label: "C vs Rust" },
 ];
 
 export default function Nav(): JSX.Element {

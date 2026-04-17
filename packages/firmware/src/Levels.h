@@ -40,21 +40,23 @@ static constexpr uint8_t NUM_LEVELS = 3;
 static const byte levels[NUM_LEVELS][8] = {
 
   { // ── Level 1: Simple C-Shape ────────────────────────────
-    // Beginner-friendly single corridor that loops around the edge.
+    // Beginner-friendly corridor that loops around the edge.
+    // Rows 2 and 4 have a left-side opening (col 1) that connects
+    // the three horizontal runs into a solvable C-shape path.
     // Visual:
     //   ████████
     //   █······█
-    //   ████████
+    //   █·██████  ← col 1 open: connector row
     //   █······█
-    //   ████████
+    //   █·██████  ← col 1 open: connector row
     //   █······█
     //   ██████·█
     //   ████████
     B11111111,
     B10000001,
-    B11111111,
+    B10111111,
     B10000001,
-    B11111111,
+    B10111111,
     B10000001,
     B11111101,
     B11111111

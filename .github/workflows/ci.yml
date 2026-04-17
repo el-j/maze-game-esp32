@@ -12,16 +12,16 @@ permissions:
   contents: read
 
 jobs:
-  firmware:
-    name: Firmware – PlatformIO Build
+  # ── 1. C++ Firmware compile (ESP32) ─────────────────────────────────────────
+  firmware-cpp:
+    name: Firmware C++ – PlatformIO Build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: packages/firmware
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Cache PlatformIO packages
         uses: actions/cache@v4
@@ -33,5 +33,239 @@ jobs:
       - name: Install PlatformIO Core
         run: pip install --quiet platformio
 
-      - name: Compile firmware
-        run: pio run
+      - name: Compile firmware (release)
+        run: pio run -e esp32dev
+
+      - name: Compile firmware (debug)
+        run: pio run -e esp32dev-debug
+
+  # ── 2. C++ Native unit tests (host) ─────────────────────────────────────────
+  firmware-cpp-tests:
+    name: Firmware C++ – Native Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/firmware
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('packages/firmware/platformio.ini') }}
+          restore-keys: pio-
+
+      - name: Install PlatformIO Core
+        run: pip install --quiet platformio
+
+      - name: Run native unit tests
+        run: pio test -e native
+
+  # ── 3. Rust firmware – host unit tests ──────────────────────────────────────
+  firmware-rust-tests:
+    name: Firmware Rust – Host Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/firmware-rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/firmware-rust/target
+          key: rust-stable-${{ hashFiles('packages/firmware-rust/Cargo.lock') }}
+          restore-keys: rust-stable-
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy (lib only – host target)
+        run: cargo clippy --lib -- -D warnings
+
+      - name: Run all lib tests
+        run: cargo test --lib
+
+  # ── 4. Rust firmware – ESP32 cross-compile (main branch only) ───────────────
+  firmware-rust-esp32:
+    name: Firmware Rust – ESP32 Cross-Compile
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: packages/firmware-rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install espup
+        run: cargo install espup --locked
+
+      - name: Install Espressif Rust toolchain
+        run: espup install --export-file /tmp/espup-env.sh
+
+      - name: Cache Espressif toolchain artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.rustup/toolchains/esp
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/firmware-rust/target
+          key: rust-esp-${{ hashFiles('packages/firmware-rust/Cargo.lock') }}
+          restore-keys: rust-esp-
+
+      - name: Cross-compile for ESP32
+        run: |
+          source /tmp/espup-env.sh
+          cargo build --release \
+            --features esp32-target \
+            --target xtensa-esp32-none-elf
+
+      - name: Extract Rust binary sizes
+        run: |
+          source /tmp/espup-env.sh
+          SIZE_BIN=$(find ~/.rustup/toolchains/esp -name "xtensa-esp32-elf-size" 2>/dev/null | head -1)
+          ELF="target/xtensa-esp32-none-elf/release/maze-game-esp32-rust"
+          mkdir -p /tmp/rust-artefacts
+          if [ -n "$SIZE_BIN" ] && [ -f "$ELF" ]; then
+            "$SIZE_BIN" -A "$ELF" | tee /tmp/rust-artefacts/rust-size.txt
+          else
+            echo "size tool or ELF not found" | tee /tmp/rust-artefacts/rust-size.txt
+          fi
+
+      - name: Upload Rust artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-esp32-artefacts
+          path: |
+            packages/firmware-rust/target/xtensa-esp32-none-elf/release/maze-game-esp32-rust
+            /tmp/rust-artefacts/rust-size.txt
+          if-no-files-found: warn
+
+  # ── 5. Webapp tests ──────────────────────────────────────────────────────────
+  webapp:
+    name: Webapp – TypeScript Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+  # ── 6. Binary size comparison (main only) ────────────────────────────────────
+  size-comparison:
+    name: Binary Size Comparison
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [firmware-cpp, firmware-rust-esp32]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Rust artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-esp32-artefacts
+          path: /tmp/rust-artefacts
+        continue-on-error: true
+
+      - name: Generate comparison.json
+        run: |
+          python3 - <<'EOF'
+          import json, os, re, datetime
+
+          def parse_size_txt(path):
+              out = {"flash_bytes": 0, "ram_bytes": 0, "bss_bytes": 0, "data_bytes": 0}
+              if not os.path.exists(path):
+                  return {k: None for k in out}
+              with open(path) as f:
+                  for line in f:
+                      if ".text" in line or ".rodata" in line:
+                          m = re.search(r'\b(\d+)\b', line)
+                          if m: out["flash_bytes"] += int(m.group(1))
+                      elif ".bss" in line:
+                          m = re.search(r'\b(\d+)\b', line)
+                          if m:
+                              v = int(m.group(1))
+                              out["bss_bytes"] += v
+                              out["ram_bytes"] += v
+                      elif ".data" in line:
+                          m = re.search(r'\b(\d+)\b', line)
+                          if m:
+                              v = int(m.group(1))
+                              out["data_bytes"] += v
+                              out["ram_bytes"] += v
+              return {k: (v or None) for k, v in out.items()}
+
+          rust = parse_size_txt("/tmp/rust-artefacts/tmp/rust-artefacts/rust-size.txt")
+
+          result = {
+              "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+              "generated_by": "ci",
+              "c_firmware": {
+                  "framework": "Arduino / PlatformIO",
+                  "language": "C++17",
+                  "toolchain": "xtensa-esp32-elf-gcc",
+                  "opt_level": "-Os",
+                  "flash_bytes": None,
+                  "ram_bytes": None,
+                  "bss_bytes": None,
+                  "data_bytes": None,
+                  "build_time_s": None,
+              },
+              "rust_firmware": {
+                  "framework": "esp-hal (bare-metal)",
+                  "language": "Rust 2021 edition",
+                  "toolchain": "esp (espressif fork)",
+                  "opt_level": "s + LTO + strip",
+                  **rust,
+                  "build_time_s": None,
+              },
+              "notes": [
+                  "flash_bytes = sum of .text + .rodata sections (code + constants)",
+                  "ram_bytes   = sum of .data + .bss sections (initialised + zero-init RAM)",
+                  "Measured from Release ELF targeting xtensa-esp32-none-elf.",
+                  "null = section not found in size output.",
+              ],
+          }
+          os.makedirs("webapp/public", exist_ok=True)
+          with open("webapp/public/comparison.json", "w") as f:
+              json.dump(result, f, indent=2)
+          print(json.dumps(result, indent=2))
+          EOF
+
+      - name: Upload comparison.json artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparison-json
+          path: webapp/public/comparison.json

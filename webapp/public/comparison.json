@@ -1,0 +1,33 @@
+{
+  "_comment": "Static fallback – CI overwrites this with real measurements from the build. See .github/workflows/ci.yml.",
+  "generated_at": "2026-04-17T00:00:00Z",
+  "generated_by": "static-fallback",
+  "c_firmware": {
+    "framework": "Arduino / PlatformIO",
+    "language": "C++17",
+    "toolchain": "xtensa-esp32-elf-gcc",
+    "opt_level": "-Os",
+    "flash_bytes": null,
+    "ram_bytes": null,
+    "bss_bytes": null,
+    "data_bytes": null,
+    "build_time_s": null
+  },
+  "rust_firmware": {
+    "framework": "esp-hal (bare-metal)",
+    "language": "Rust 2021 edition",
+    "toolchain": "esp (espressif fork)",
+    "opt_level": "s + LTO + strip",
+    "flash_bytes": null,
+    "ram_bytes": null,
+    "bss_bytes": null,
+    "data_bytes": null,
+    "build_time_s": null
+  },
+  "notes": [
+    "flash_bytes = .text + .rodata sections (program code + constants)",
+    "ram_bytes   = .data + .bss sections (initialised + zero-initialised RAM)",
+    "Measurements taken from the ELF output of a Release build targeting xtensa-esp32-none-elf.",
+    "Run 'make size-comparison' locally after installing both toolchains to regenerate."
+  ]
+}

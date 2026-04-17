@@ -1,5 +1,11 @@
-[build]
-target = "xtensa-esp32-none-elf"
+# Default build target is left unset so that `cargo test` runs on the
+# host (x86_64) for fast iteration and CI.
+#
+# To build for the real ESP32 hardware, pass the target explicitly:
+#   cargo build --release --features esp32-target \
+#               --target xtensa-esp32-none-elf
+#
+# The CI workflow does this automatically.
 
 [target.xtensa-esp32-none-elf]
 runner  = "espflash flash --monitor"

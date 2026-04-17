@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import BuildGuide from "@/components/BuildGuide/BuildGuide";
+import Comparison from "@/components/Comparison/Comparison";
 import Hero from "@/components/Hero/Hero";
 import HowItWorks from "@/components/HowItWorks/HowItWorks";
 import Nav from "@/components/Nav/Nav";
@@ -20,6 +21,7 @@ export default function Home(): JSX.Element {
         <HowItWorks id="how-it-works" />
         <BuildGuide id="build" />
         <WiringReference id="wiring" />
+        <Comparison id="comparison" />
       </main>
       <footer className="bg-zinc-950 border-t border-zinc-800 py-8">
         <div className="container mx-auto px-6 text-center text-zinc-500 text-sm font-mono">

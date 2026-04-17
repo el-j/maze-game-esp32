@@ -1,0 +1,141 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # ── Build WASM from the same C++ sources used by the firmware ─────────────
+  build-wasm:
+    name: Build WASM (Emscripten)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "3.1.64"
+          actions-cache-folder: "emsdk-cache"
+
+      - name: Compile game.wasm + game.js
+        run: |
+          mkdir -p webapp/public
+          # All sources: game logic (identical to firmware) + WASM shims
+          CPP_SOURCES="
+            packages/firmware/src/Game.cpp
+            packages/firmware/src/Feedback.cpp
+            packages/firmware/wasm/hal_wasm.cpp
+            packages/firmware/wasm/Display_wasm.cpp
+            packages/firmware/wasm/Motion_wasm.cpp
+            packages/firmware/wasm/config_wasm.cpp
+            packages/firmware/wasm/main_wasm.cpp
+          "
+          emcc $CPP_SOURCES \
+            -I packages/firmware/wasm/ \
+            -I packages/firmware/src/ \
+            -DWASM_BUILD \
+            -DARDUINO=200 \
+            -s EXPORTED_FUNCTIONS='[
+              "_wasmInit","_wasmTick","_wasmSetTiltExport","_wasmSetButton",
+              "_wasmGetDisplay","_wasmNoteHz","_wasmMotorDuty",
+              "_wasmGetState","_wasmGetLives","_wasmGetLevel",
+              "_wasmSetSensitivity","_wasmSetFriction",
+              "_wasmSetDeadzone","_wasmSetStartingLives",
+              "_wasmResetGame","_malloc","_free"
+            ]' \
+            -s EXPORTED_RUNTIME_METHODS='["HEAPU8","HEAPU16"]' \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME='MazeGame' \
+            -s ENVIRONMENT=web \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s INITIAL_MEMORY=2097152 \
+            -O2 \
+            -std=c++17 \
+            -o webapp/public/game.js
+
+      - name: Upload WASM artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-artefacts
+          path: |
+            webapp/public/game.js
+            webapp/public/game.wasm
+
+  # ── Build the Next.js static site ─────────────────────────────────────────
+  build-site:
+    name: Build Next.js Site
+    runs-on: ubuntu-latest
+    needs: build-wasm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: webapp
+
+      - name: Download WASM artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-artefacts
+          path: webapp/public
+
+      - name: Download comparison.json (if available)
+        uses: actions/download-artifact@v4
+        with:
+          name: comparison-json
+          path: webapp/public
+        continue-on-error: true
+
+      - name: Run tests
+        run: npm test
+        working-directory: webapp
+
+      - name: Build static site
+        run: npm run build
+        working-directory: webapp
+        env:
+          # Set basePath if the repo name differs from the expected path.
+          # GitHub Pages deploys to https://<owner>.github.io/<repo>/
+          NEXT_PUBLIC_BASE_PATH: /maze-game-esp32
+          NEXT_PUBLIC_REPO_URL: https://github.com/el-j/maze-game-esp32
+
+      - name: Upload Pages artefact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: webapp/out
+
+  # ── Deploy to GitHub Pages ─────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-site
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
