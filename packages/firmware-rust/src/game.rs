@@ -119,8 +119,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         let mut crashed = false;
 
         // X-axis collision
-        let next_x = if next_x < 0.0
-            || next_x >= 8.0
+        let next_x = if !(0.0..8.0).contains(&next_x)
             || levels::is_wall(self.level, next_x as usize, self.player_y as usize)
         {
             self.vel_x = -self.vel_x * 0.5;
@@ -131,8 +130,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         };
 
         // Y-axis collision
-        let next_y = if next_y < 0.0
-            || next_y >= 8.0
+        let next_y = if !(0.0..8.0).contains(&next_y)
             || levels::is_wall(self.level, self.player_x as usize, next_y as usize)
         {
             self.vel_y = -self.vel_y * 0.5;
@@ -177,7 +175,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         let px = self.player_x as usize;
         let py = self.player_y as usize;
         self.buf.set_pixel(px, py, true);
-        let goal_visible = (now_ms / 200) % 2 == 0;
+        let goal_visible = (now_ms / 200).is_multiple_of(2);
         let gx = levels::GOAL_X[self.level];
         let gy = levels::GOAL_Y[self.level];
         self.buf.set_pixel(gx, gy, goal_visible);
@@ -187,7 +185,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
 
     fn tick_crashed(&mut self, now_ms: u64) {
         let elapsed = now_ms.saturating_sub(self.crashed_at_ms);
-        let dots_visible = (elapsed / 160) % 2 == 0;
+        let dots_visible = (elapsed / 160).is_multiple_of(2);
         self.buf.clear();
         if dots_visible {
             for i in 0..self.lives as usize {

@@ -32,9 +32,9 @@ struct Note {
 
 // ── Named note frequency constants ──────────────────────────
 // Add more as needed when composing new melodies.
-static constexpr uint16_t REST = 0;
-static constexpr uint16_t E3  = 165;
-static constexpr uint16_t A3  = 220;
+static constexpr uint16_t REST    = 0;
+static constexpr uint16_t E3      = 165;
+static constexpr uint16_t NOTE_A3 = 220;  // renamed: Arduino defines A3 as an analog pin
 static constexpr uint16_t C4  = 262;
 static constexpr uint16_t E4  = 330;
 static constexpr uint16_t G4  = 392;
@@ -61,7 +61,7 @@ static const Note MELODY_BOOT[] = {
 // Short descending "thud" on wall collision.
 // Low pitches feel heavy and physical – like hitting a real wall.
 static const Note MELODY_CRASH[] = {
-  {A3, 80}, {REST, 20},
+  {NOTE_A3, 80}, {REST, 20},
   {E3, 130}
 };
 
