@@ -122,6 +122,7 @@ static void startMotor(uint8_t duty, uint16_t durationMs) {
   ledcWrite(MOTOR_PIN, duty);
   motorEnd    = millis() + durationMs;
   motorActive = true;
+  motorDuty   = duty;
 }
 
 // ── Public API ──────────────────────────────────────────────
@@ -143,6 +144,7 @@ void feedbackUpdate() {
   if (motorActive && now >= motorEnd) {
     ledcWrite(MOTOR_PIN, 0);
     motorActive = false;
+    motorDuty   = 0;
   }
 
   // ── Melody sequencer: advance to next note ───────────────
@@ -153,7 +155,8 @@ void feedbackUpdate() {
     } else {
       // Melody finished
       noTone(BUZZER_PIN);
-      melodyLen = 0;
+      activeNoteHz = 0;
+      melodyLen    = 0;
     }
   }
 }
@@ -177,4 +180,12 @@ void feedbackPlayLevelUp() {
 void feedbackPlayVictory() {
   startMelody(MELODY_VICTORY, sizeof(MELODY_VICTORY) / sizeof(Note));
   startMotor(MOTOR_DUTY_VICTORY, MOTOR_MS_VICTORY);
+}
+
+uint16_t feedbackCurrentNote() {
+  return activeNoteHz;
+}
+
+uint8_t feedbackMotorDuty() {
+  return motorDuty;
 }
