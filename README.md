@@ -42,6 +42,8 @@ make upload
 make monitor
 ```
 
+> Serial monitor baud rate: **115200**
+
 Requires [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html):
 
 ```bash

@@ -141,7 +141,7 @@ void feedbackUpdate() {
 }
 
 void triggerCrash() {
-  ledcWrite(MOTOR_LEDC_CH, 160);       // ~63 % duty – soft rumble
+  ledcWrite(MOTOR_LEDC_CH, 160);       // ~63% duty – soft rumble
   rumbleEnd = millis() + 250;
   tone(BUZZER_PIN, 150);
   toneEnd = millis() + 200;
@@ -222,7 +222,7 @@ void setup() {
 void loop() {
   feedbackUpdate();
 
-  bool btn = digitalRead(BUTTON_PIN);  // active-HIGH (wired to 3.3 V)
+  bool btn = digitalRead(BUTTON_PIN);  // active-HIGH (wired to 3.3V)
 
   switch (currentState) {
 
