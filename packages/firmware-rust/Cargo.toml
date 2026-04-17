@@ -1,0 +1,45 @@
+[package]
+name    = "maze-game-esp32-rust"
+version = "0.1.0"
+edition = "2021"
+
+# The binary (ESP32 target) – no tests run here
+[[bin]]
+name             = "maze-game-esp32-rust"
+test             = false
+bench            = false
+required-features = ["esp32-target"]
+
+# The library (host + ESP32) – all unit tests live here
+[lib]
+name = "maze_game_lib"
+
+[features]
+default = []
+esp32-target = ["esp-hal", "esp-backtrace", "critical-section"]
+
+[dependencies]
+# Optional – only pulled when building for real hardware
+esp-hal       = { version = "0.22", features = ["esp32"], optional = true }
+esp-backtrace = { version = "0.14", features = ["esp32", "panic-handler", "exception-handler", "println"], optional = true }
+critical-section = { version = "1.1", optional = true }
+
+# Always present – used for trait definitions
+embedded-hal = "1.0"
+
+[dev-dependencies]
+# nothing extra needed; tests use std on the host
+
+[profile.release]
+opt-level     = "s"   # size-optimised
+codegen-units = 1
+lto           = "fat"
+strip         = true
+
+[profile.dev]
+debug = true
+opt-level = 1
+
+# Required for building no_std binary
+[profile.release.package."*"]
+opt-level = "s"
