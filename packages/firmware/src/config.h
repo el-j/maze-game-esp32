@@ -26,6 +26,15 @@
 //  Experiment tip: adjust one value at a time, re-flash, play
 //  for 30 seconds, then decide whether to go higher or lower.
 
+#ifdef WASM_BUILD
+// In the browser demo these are runtime-adjustable via the Dev HUD
+// sliders.  Defined as globals in packages/firmware/wasm/config_wasm.cpp
+// and exposed through wasmSet*() exports.
+extern float SENSITIVITY;
+extern float FRICTION;
+extern float DEADZONE;
+extern int   STARTING_LIVES;
+#else
 // How strongly the tilt angle translates into ball speed.
 // Too high → ball flies across the screen uncontrollably.
 // Too low  → feels sluggish and unresponsive.
@@ -41,6 +50,10 @@ constexpr float FRICTION = 0.85f;
 // Raise this if the ball creeps on its own from hand tremor.
 // Lower this if you have to tilt the board very far to move.
 constexpr float DEADZONE = 0.50f;
+
+// ── Game Rules ──────────────────────────────────────────────
+constexpr int STARTING_LIVES   = 3;    // Lives at game start
+#endif
 
 // ── IMU Calibration ─────────────────────────────────────────
 // Number of sensor readings averaged during the boot calibration.
@@ -66,6 +79,5 @@ constexpr uint16_t MOTOR_MS_LEVELUP = 150;
 constexpr uint16_t MOTOR_MS_VICTORY = 600;
 
 // ── Game Rules ──────────────────────────────────────────────
-constexpr int STARTING_LIVES   = 3;    // Lives at game start
 constexpr int CRASH_DISPLAY_MS = 1500; // ms to show crash screen
 constexpr int LEVELUP_PAUSE_MS = 1200; // ms pause before next level

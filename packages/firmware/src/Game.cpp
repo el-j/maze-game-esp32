@@ -237,3 +237,7 @@ void gameUpdate(bool btn) {
     case STATE_VICTORY:  handleVictory(btn);  break;
   }
 }
+
+int gameGetState() { return static_cast<int>(state); }
+int gameGetLives() { return lives; }
+int gameGetLevel() { return level; }

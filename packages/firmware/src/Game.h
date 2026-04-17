@@ -34,3 +34,9 @@
 
 void gameInit();
 void gameUpdate(bool btn);
+
+// ── Diagnostic getters ───────────────────────────────────────
+// Used by the debug dashboard and the WASM browser demo.
+int gameGetState();  // returns GameState enum value  0=TITLE … 4=VICTORY
+int gameGetLives();  // remaining lives (0 after game-over)
+int gameGetLevel();  // current level index (0-based)
