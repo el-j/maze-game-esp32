@@ -1,10 +1,15 @@
-//! Maze level data – exact port of packages/firmware/src/Levels.h.
+//! Maze level data – port of packages/firmware/src/Levels.h.
 //! Each level is 8 bytes (one per row); bit 7 = column 0.
 //! 1 = wall, 0 = open path.
 //!
-//! Note: Level 1 uses corrected data ([0xFF,0x81,0xBF,0x81,0xBF,0x81,0xFD,0xFF])
-//! to form a proper connected C-shape, making it BFS-solvable.  The original
-//! C++ data had three isolated corridors with no inter-row connections.
+//! **Level 1 deviation from C++ source**: The original C++ Level 1 data
+//! (`[0xFF, 0x81, 0xFF, 0x81, 0xFF, 0x81, 0xFD, 0xFF]`) creates three
+//! horizontally isolated corridors with no vertical connections between rows,
+//! making the start cell (1,1) unreachable from the goal cell (6,6) via
+//! step-by-step pathfinding.  The Rust version uses
+//! `[0xFF, 0x81, 0xBF, 0x81, 0xBF, 0x81, 0xFD, 0xFF]` which adds left-side
+//! vertical connectors (col 1 open in rows 2 and 4), creating a proper
+//! connected C-shape that satisfies the BFS solvability invariant.
 
 pub const NUM_LEVELS: usize = 3;
 
