@@ -114,7 +114,7 @@ jobs:
         run: cargo install espup --locked
 
       - name: Install Espressif Rust toolchain
-        run: espup install --export-file /tmp/espup-env.sh
+        run: espup install --export-file /tmp/espup-env.sh --github-token ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Espressif toolchain artefacts
         uses: actions/cache@v4
