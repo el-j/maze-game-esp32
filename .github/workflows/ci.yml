@@ -127,12 +127,18 @@ jobs:
           key: rust-esp-${{ hashFiles('packages/firmware-rust/Cargo.lock') }}
           restore-keys: rust-esp-
 
+      - name: Add rust-src component (needed for -Zbuild-std)
+        run: |
+          source /tmp/espup-env.sh
+          rustup component add rust-src
+
       - name: Cross-compile for ESP32
         run: |
           source /tmp/espup-env.sh
           cargo build --release \
             --features esp32-target \
-            --target xtensa-esp32-none-elf
+            --target xtensa-esp32-none-elf \
+            -Zbuild-std=core
 
       - name: Extract Rust binary sizes
         run: |

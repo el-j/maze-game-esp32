@@ -27,24 +27,32 @@ int  analogRead(uint8_t) { return 0; }
 
 // ── Audio: tone() / noTone() ─────────────────────────────────
 // These are called by Feedback.cpp's melody sequencer.
-// EM_JS defines a C++ function whose body executes as JavaScript.
+// EM_JS creates a C-linkage function; using the same name as the C++
+// declaration in Arduino.h causes a "different language linkage" error.
+// Use private JS-bridge names and wrap them in regular C++ functions.
 
-EM_JS(void, tone, (uint8_t /*pin*/, unsigned int freq), {
+EM_JS(void, tone_js_shim, (unsigned int freq), {
   if (typeof window !== 'undefined' && typeof window._wasmTone === 'function') {
     window._wasmTone(freq);
   }
 })
 
-EM_JS(void, noTone, (uint8_t /*pin*/), {
+void tone(uint8_t /*pin*/, unsigned int freq) {
+  tone_js_shim(freq);
+}
+
+void tone(uint8_t pin, unsigned int freq, unsigned long /*dur*/) {
+  tone(pin, freq);
+}
+
+EM_JS(void, noTone_js_shim, (), {
   if (typeof window !== 'undefined' && typeof window._wasmTone === 'function') {
     window._wasmTone(0);
   }
 })
 
-// Overload with duration – Feedback.cpp doesn't use it but the
-// Arduino.h header declares it; we need a definition to link.
-void tone(uint8_t pin, unsigned int freq, unsigned long /*dur*/) {
-  tone(pin, freq);
+void noTone(uint8_t /*pin*/) {
+  noTone_js_shim();
 }
 
 // ── Motor: ledcAttach() / ledcWrite() ────────────────────────
@@ -52,8 +60,12 @@ void tone(uint8_t pin, unsigned int freq, unsigned long /*dur*/) {
 void ledcAttach(uint8_t, uint32_t, uint8_t) {}
 void ledcDetach(uint8_t) {}
 
-EM_JS(void, ledcWrite, (uint8_t /*pin*/, uint32_t duty), {
+EM_JS(void, ledcWrite_js_shim, (uint32_t duty), {
   if (typeof window !== 'undefined' && typeof window._wasmMotor === 'function') {
     window._wasmMotor(duty);
   }
 })
+
+void ledcWrite(uint8_t /*pin*/, uint32_t duty) {
+  ledcWrite_js_shim(duty);
+}
