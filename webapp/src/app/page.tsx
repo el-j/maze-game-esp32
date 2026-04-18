@@ -1,16 +1,11 @@
 import type { JSX } from "react";
-import dynamic from "next/dynamic";
 import BuildGuide from "@/components/BuildGuide/BuildGuide";
 import Comparison from "@/components/Comparison/Comparison";
+import GameSection from "@/components/GameSection/GameSection";
 import Hero from "@/components/Hero/Hero";
 import HowItWorks from "@/components/HowItWorks/HowItWorks";
 import Nav from "@/components/Nav/Nav";
 import WiringReference from "@/components/WiringReference/WiringReference";
-
-const GameSection = dynamic(
-  () => import("@/components/GameSection/GameSection"),
-  { ssr: false }
-);
 
 export default function Home(): JSX.Element {
   return (

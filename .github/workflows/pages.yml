@@ -1,9 +1,13 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
+  # Run after the CI workflow completes successfully on main so that
+  # the comparison-json artefact produced by CI is available.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Allow manual re-deploys without waiting for CI.
   workflow_dispatch:
 
 permissions:
@@ -17,10 +21,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Build WASM from the same C++ sources used by the firmware ─────────────
-  build-wasm:
-    name: Build WASM (Emscripten)
+  # ── Build WASM + Next.js static site ──────────────────────────────────────
+  build:
+    name: Build Next.js Site
     runs-on: ubuntu-latest
+    # Only deploy when CI succeeded (skip failed/cancelled runs).
+    # workflow_dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,23 +74,6 @@ jobs:
             -std=c++17 \
             -o webapp/public/game.js
 
-      - name: Upload WASM artefacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasm-artefacts
-          path: |
-            webapp/public/game.js
-            webapp/public/game.wasm
-
-  # ── Build the Next.js static site ─────────────────────────────────────────
-  build-site:
-    name: Build Next.js Site
-    runs-on: ubuntu-latest
-    needs: build-wasm
-
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -91,22 +81,16 @@ jobs:
           cache: "npm"
           cache-dependency-path: webapp/package-lock.json
 
+      - name: Cache Next.js build output
+        uses: actions/cache@v4
+        with:
+          path: webapp/.next/cache
+          key: nextjs-${{ hashFiles('webapp/package-lock.json') }}-${{ hashFiles('webapp/src/**') }}
+          restore-keys: nextjs-${{ hashFiles('webapp/package-lock.json') }}-
+
       - name: Install dependencies
         run: npm ci
         working-directory: webapp
-
-      - name: Download WASM artefacts
-        uses: actions/download-artifact@v4
-        with:
-          name: wasm-artefacts
-          path: webapp/public
-
-      - name: Download comparison.json (if available)
-        uses: actions/download-artifact@v4
-        with:
-          name: comparison-json
-          path: webapp/public
-        continue-on-error: true
 
       - name: Run tests
         run: npm test
@@ -121,6 +105,19 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: /maze-game-esp32
           NEXT_PUBLIC_REPO_URL: https://github.com/el-j/maze-game-esp32
 
+      # comparison.json is fetched client-side by the Comparison component,
+      # so it only needs to land in the output directory – not during the build.
+      # Downloading after the build prevents any influence on build/test steps.
+      - name: Download comparison.json from CI run (if available)
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: comparison-json
+          path: webapp/out
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Upload Pages artefact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -130,7 +127,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
-    needs: build-site
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

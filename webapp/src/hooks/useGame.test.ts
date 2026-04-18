@@ -58,9 +58,12 @@ describe("useGame", () => {
     jest.useRealTimers();
   });
 
-  it("initial loadState is 'loading'", () => {
+  it("initial loadState is 'loading'", async () => {
     const { result } = renderHook(() => useGame(defaultInput, DEFAULT_CONFIG));
     expect(result.current.loadState).toBe("loading");
+    // Flush pending microtasks so the promise resolution is wrapped in act()
+    // and doesn't produce an "not wrapped in act()" warning.
+    await act(async () => {});
   });
 
   it("after loadGameModule resolves, loadState is 'ready'", async () => {
