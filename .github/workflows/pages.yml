@@ -109,6 +109,12 @@ jobs:
         run: npm ci
         working-directory: webapp
 
+      # Run tests before downloading any external artefacts so that
+      # the test environment is not affected by downloaded content.
+      - name: Run tests
+        run: npm test
+        working-directory: webapp
+
       - name: Download WASM artefacts
         uses: actions/download-artifact@v4
         with:
@@ -123,10 +129,6 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
-
-      - name: Run tests
-        run: npm test
-        working-directory: webapp
 
       - name: Build static site
         run: npm run build
