@@ -1,9 +1,13 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
+  # Run after the CI workflow completes successfully on main so that
+  # the comparison-json artefact produced by CI is available.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Allow manual re-deploys without waiting for CI.
   workflow_dispatch:
 
 permissions:
@@ -21,6 +25,9 @@ jobs:
   build-wasm:
     name: Build WASM (Emscripten)
     runs-on: ubuntu-latest
+    # Only deploy when CI succeeded (skip failed/cancelled runs).
+    # workflow_dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +98,13 @@ jobs:
           cache: "npm"
           cache-dependency-path: webapp/package-lock.json
 
+      - name: Cache Next.js build output
+        uses: actions/cache@v4
+        with:
+          path: webapp/.next/cache
+          key: nextjs-${{ hashFiles('webapp/package-lock.json') }}-${{ hashFiles('webapp/src/**') }}
+          restore-keys: nextjs-${{ hashFiles('webapp/package-lock.json') }}-
+
       - name: Install dependencies
         run: npm ci
         working-directory: webapp
@@ -101,11 +115,13 @@ jobs:
           name: wasm-artefacts
           path: webapp/public
 
-      - name: Download comparison.json (if available)
+      - name: Download comparison.json from CI run (if available)
         uses: actions/download-artifact@v4
         with:
           name: comparison-json
           path: webapp/public
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Run tests
