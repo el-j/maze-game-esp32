@@ -135,7 +135,7 @@ jobs:
       - name: Cross-compile for ESP32
         run: |
           source /tmp/espup-env.sh
-          cargo build --release \
+          cargo +esp build --release \
             --features esp32-target \
             --target xtensa-esp32-none-elf \
             -Zbuild-std=core
