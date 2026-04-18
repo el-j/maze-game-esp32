@@ -96,16 +96,6 @@ jobs:
         run: npm test
         working-directory: webapp
 
-      - name: Download comparison.json from CI run (if available)
-        if: ${{ github.event.workflow_run.id != '' }}
-        uses: actions/download-artifact@v4
-        with:
-          name: comparison-json
-          path: webapp/public
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
-
       - name: Build static site
         run: npm run build
         working-directory: webapp
@@ -114,6 +104,19 @@ jobs:
           # GitHub Pages deploys to https://<owner>.github.io/<repo>/
           NEXT_PUBLIC_BASE_PATH: /maze-game-esp32
           NEXT_PUBLIC_REPO_URL: https://github.com/el-j/maze-game-esp32
+
+      # comparison.json is fetched client-side by the Comparison component,
+      # so it only needs to land in the output directory – not during the build.
+      # Downloading after the build prevents any influence on build/test steps.
+      - name: Download comparison.json from CI run (if available)
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: comparison-json
+          path: webapp/out
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
       - name: Upload Pages artefact
         uses: actions/upload-pages-artifact@v3
