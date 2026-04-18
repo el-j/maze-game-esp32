@@ -6,19 +6,16 @@
 
 use esp_backtrace as _;
 use esp_hal::{
-    clock::ClockControl,
     delay::Delay,
-    gpio::{Io, Level, Output},
-    i2c::I2C,
+    gpio::{Input, Level, Output, Pull},
+    i2c::master::{Config as I2cConfig, I2c},
     ledc::{
         channel::{self, ChannelIFace},
         timer::{self, TimerIFace},
         LSGlobalClkSource, Ledc, LowSpeed,
     },
-    peripherals::Peripherals,
-    prelude::*,
-    system::SystemControl,
-    time::current_time,
+    time::RateExtU32,
+    Blocking,
 };
 
 use maze_game_lib::{
@@ -61,7 +58,7 @@ impl Display for HardwareDisplay {
 
 // ── Hardware Buzzer ───────────────────────────────────────────
 struct HardwareBuzzer<'d> {
-    channel: channel::Channel<'d, LowSpeed, esp_hal::gpio::GpioPin<2>>,
+    channel: channel::Channel<'d, LowSpeed>,
     timer: &'d mut timer::Timer<'d, LowSpeed>,
 }
 
@@ -70,7 +67,7 @@ impl BuzzerHal for HardwareBuzzer<'_> {
         let _ = self.timer.configure(timer::config::Config {
             duty: timer::config::Duty::Duty8Bit,
             clock_source: timer::LSClockSource::APBClk,
-            frequency: hz.into(),
+            frequency: (hz as u32).Hz(),
         });
         let _ = self.channel.configure(channel::config::Config {
             timer: self.timer,
@@ -85,7 +82,7 @@ impl BuzzerHal for HardwareBuzzer<'_> {
 
 // ── Hardware Motor ────────────────────────────────────────────
 struct HardwareMotor<'d> {
-    channel: channel::Channel<'d, LowSpeed, esp_hal::gpio::GpioPin<4>>,
+    channel: channel::Channel<'d, LowSpeed>,
 }
 
 impl MotorHal for HardwareMotor<'_> {
@@ -97,7 +94,7 @@ impl MotorHal for HardwareMotor<'_> {
 
 // ── Hardware Motion ───────────────────────────────────────────
 struct HardwareMotion<'d> {
-    i2c: I2C<'d, esp_hal::peripherals::I2C0>,
+    i2c: I2c<'d, Blocking>,
     offset_x: f32,
     offset_y: f32,
 }
@@ -118,7 +115,7 @@ impl<'d> HardwareMotion<'d> {
     fn read_raw(&mut self) -> (f32, f32) {
         // Read 6 bytes from MPU6050 ACCEL_XOUT_H (0x3B)
         let mut buf = [0u8; 6];
-        let _ = self.i2c.write_read(0x68, &[0x3B], &mut buf);
+        let _ = self.i2c.write_read(0x68u8, &[0x3B], &mut buf);
         let raw_ax = i16::from_be_bytes([buf[0], buf[1]]) as f32 / 16384.0 * 9.81;
         let raw_ay = i16::from_be_bytes([buf[2], buf[3]]) as f32 / 16384.0 * 9.81;
         // Axis swap to match GY-521 orientation
@@ -140,23 +137,20 @@ impl<'d> HardwareMotion<'d> {
 }
 
 // ── Entry Point ───────────────────────────────────────────────
-#[esp_hal::entry]
+#[esp_hal::main]
 fn main() -> ! {
-    let peripherals = Peripherals::take();
-    let system = SystemControl::new(peripherals.SYSTEM);
-    let clocks = ClockControl::max(system.clock_control).freeze();
-    let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
+    let peripherals = esp_hal::init(esp_hal::Config::default());
 
-    let mut delay = Delay::new(&clocks);
+    let mut delay = Delay::new();
 
-    // Read button
-    let button = esp_hal::gpio::Input::new(io.pins.gpio34, esp_hal::gpio::Pull::None);
+    // Read button (GPIO34 is input-only on ESP32)
+    let button = Input::new(peripherals.GPIO34, Pull::None);
 
     // LEDC for motor and buzzer
-    let mut ledc = Ledc::new(peripherals.LEDC, &clocks);
+    let mut ledc = Ledc::new(peripherals.LEDC);
     ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
 
-    let mut lstimer0 = ledc.get_timer::<LowSpeed>(timer::Number::Timer0);
+    let mut lstimer0 = ledc.timer::<LowSpeed>(timer::Number::Timer0);
     lstimer0
         .configure(timer::config::Config {
             duty: timer::config::Duty::Duty8Bit,
@@ -169,34 +163,37 @@ fn main() -> ! {
     let mut engine = GameEngine::new(
         HardwareDisplay {
             rows: [
-                Output::new(io.pins.gpio13, Level::Low),
-                Output::new(io.pins.gpio16, Level::Low),
-                Output::new(io.pins.gpio17, Level::Low),
-                Output::new(io.pins.gpio5, Level::Low),
-                Output::new(io.pins.gpio18, Level::Low),
-                Output::new(io.pins.gpio19, Level::Low),
-                Output::new(io.pins.gpio23, Level::Low),
-                Output::new(io.pins.gpio25, Level::Low),
+                Output::new(peripherals.GPIO13, Level::Low),
+                Output::new(peripherals.GPIO16, Level::Low),
+                Output::new(peripherals.GPIO17, Level::Low),
+                Output::new(peripherals.GPIO5, Level::Low),
+                Output::new(peripherals.GPIO18, Level::Low),
+                Output::new(peripherals.GPIO19, Level::Low),
+                Output::new(peripherals.GPIO23, Level::Low),
+                Output::new(peripherals.GPIO25, Level::Low),
             ],
             cols: [
-                Output::new(io.pins.gpio26, Level::High),
-                Output::new(io.pins.gpio32, Level::High),
-                Output::new(io.pins.gpio33, Level::High),
-                Output::new(io.pins.gpio27, Level::High),
-                Output::new(io.pins.gpio14, Level::High),
-                Output::new(io.pins.gpio12, Level::High),
-                Output::new(io.pins.gpio15, Level::High),
-                Output::new(io.pins.gpio0, Level::High),
+                Output::new(peripherals.GPIO26, Level::High),
+                Output::new(peripherals.GPIO32, Level::High),
+                Output::new(peripherals.GPIO33, Level::High),
+                Output::new(peripherals.GPIO27, Level::High),
+                Output::new(peripherals.GPIO14, Level::High),
+                Output::new(peripherals.GPIO12, Level::High),
+                Output::new(peripherals.GPIO15, Level::High),
+                Output::new(peripherals.GPIO0, Level::High),
             ],
         },
         {
-            let i2c = I2C::new(
+            let i2c = I2c::new(
                 peripherals.I2C0,
-                io.pins.gpio21,
-                io.pins.gpio22,
-                400u32.kHz(),
-                &clocks,
-            );
+                I2cConfig {
+                    frequency: 400u32.kHz(),
+                    ..I2cConfig::default()
+                },
+            )
+            .unwrap()
+            .with_sda(peripherals.GPIO21)
+            .with_scl(peripherals.GPIO22);
             let mut m = HardwareMotion {
                 i2c,
                 offset_x: 0.0,
@@ -207,11 +204,11 @@ fn main() -> ! {
         },
         Feedback::new(
             HardwareBuzzer {
-                channel: ledc.get_channel(channel::Number::Channel0, io.pins.gpio2),
+                channel: ledc.channel(channel::Number::Channel0, peripherals.GPIO2),
                 timer: &mut lstimer0,
             },
             HardwareMotor {
-                channel: ledc.get_channel(channel::Number::Channel1, io.pins.gpio4),
+                channel: ledc.channel(channel::Number::Channel1, peripherals.GPIO4),
             },
         ),
     );
@@ -220,9 +217,10 @@ fn main() -> ! {
     engine.init(start_ms);
 
     loop {
-        let now_ms = current_time().to_millis();
+        let now_ms = esp_hal::time::now().ticks() / 1000;
         let btn = button.is_high();
         engine.tick(btn, now_ms);
         delay.delay_millis(20u32); // 50 Hz
     }
 }
+
