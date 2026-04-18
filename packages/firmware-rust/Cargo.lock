@@ -456,8 +456,10 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee38e87bc7e303c299047c0e9bcd0f8ccca7c7e70d1fd78bbb565db14f33beb6"
 dependencies = [
+ "critical-section",
  "esp-build",
  "log",
+ "portable-atomic",
 ]
 
 [[package]]
@@ -616,6 +618,7 @@ dependencies = [
  "embedded-hal 1.0.0",
  "esp-backtrace",
  "esp-hal",
+ "esp-println",
 ]
 
 [[package]]
