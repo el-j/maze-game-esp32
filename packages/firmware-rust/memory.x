@@ -22,7 +22,7 @@ MEMORY
   reserved_rom_stack_pro : ORIGIN = 0x3ffe1320, len = 11264
   reserved_rom_stack_app : ORIGIN = 0x3ffe5230, len = 11264
 
-  dram2_seg              : ORIGIN = 0x3ffe7e30, len = 98767
+  dram2_seg              : ORIGIN = 0x3ffe7e30, len = 98767  /* remaining DRAM after ROM data/stack regions */
 
   /* external flash */
   irom_seg ( RX )        : ORIGIN = 0x400D0020, len = 3M - 0x20
