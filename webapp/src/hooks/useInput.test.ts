@@ -36,6 +36,25 @@ describe("useInput", () => {
     expect(result.current.ax).toBeGreaterThan(0);
   });
 
+  it("setBtn(true) sets btn to true", () => {
+    const { result } = renderHook(() => useInput());
+    act(() => {
+      result.current.setBtn(true);
+    });
+    expect(result.current.btn).toBe(true);
+  });
+
+  it("setBtn(false) clears btn override", () => {
+    const { result } = renderHook(() => useInput());
+    act(() => {
+      result.current.setBtn(true);
+    });
+    act(() => {
+      result.current.setBtn(false);
+    });
+    expect(result.current.btn).toBe(false);
+  });
+
   it("devicemotion event updates axes", () => {
     const { result } = renderHook(() => useInput());
     act(() => {

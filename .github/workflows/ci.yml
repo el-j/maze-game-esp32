@@ -39,6 +39,26 @@ jobs:
       - name: Compile firmware (debug)
         run: pio run -e esp32dev-debug
 
+      - name: Extract C++ binary sizes
+        run: |
+          ELF=".pio/build/esp32dev/firmware.elf"
+          SIZE_BIN=$(find ~/.platformio -name "xtensa-esp32-elf-size" 2>/dev/null | head -1)
+          if [ -z "$SIZE_BIN" ]; then SIZE_BIN="size"; fi
+          if [ -f "$ELF" ]; then
+            "$SIZE_BIN" -A "$ELF" | tee cpp-size.txt
+          else
+            echo "ELF not found" > cpp-size.txt
+          fi
+
+      - name: Upload C++ size artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-esp32-artefacts
+          # Path is workspace-root relative; the run step's CWD is packages/firmware,
+          # so cpp-size.txt is written to packages/firmware/cpp-size.txt.
+          path: packages/firmware/cpp-size.txt
+          if-no-files-found: warn
+
   # ── 2. C++ Native unit tests (host) ─────────────────────────────────────────
   firmware-cpp-tests:
     name: Firmware C++ – Native Unit Tests
@@ -147,11 +167,11 @@ jobs:
           source /tmp/espup-env.sh
           SIZE_BIN=$(find ~/.rustup/toolchains/esp -name "xtensa-esp32-elf-size" 2>/dev/null | head -1)
           ELF="target/xtensa-esp32-none-elf/release/maze-game-esp32-rust"
-          mkdir -p /tmp/rust-artefacts
+          mkdir -p rust-artefacts
           if [ -n "$SIZE_BIN" ] && [ -f "$ELF" ]; then
-            "$SIZE_BIN" -A "$ELF" | tee /tmp/rust-artefacts/rust-size.txt
+            "$SIZE_BIN" -A "$ELF" | tee rust-artefacts/rust-size.txt
           else
-            echo "size tool or ELF not found" | tee /tmp/rust-artefacts/rust-size.txt
+            echo "size tool or ELF not found" | tee rust-artefacts/rust-size.txt
           fi
 
       - name: Upload Rust artefacts
@@ -160,7 +180,7 @@ jobs:
           name: rust-esp32-artefacts
           path: |
             packages/firmware-rust/target/xtensa-esp32-none-elf/release/maze-game-esp32-rust
-            /tmp/rust-artefacts/rust-size.txt
+            packages/firmware-rust/rust-artefacts/rust-size.txt
           if-no-files-found: warn
 
   # ── 5. Webapp tests ──────────────────────────────────────────────────────────
@@ -207,6 +227,13 @@ jobs:
           path: /tmp/rust-artefacts
         continue-on-error: true
 
+      - name: Download C++ artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cpp-esp32-artefacts
+          path: /tmp/cpp-artefacts
+        continue-on-error: true
+
       - name: Generate comparison.json
         run: |
           python3 - <<'EOF'
@@ -235,7 +262,8 @@ jobs:
                               out["ram_bytes"] += v
               return {k: (v or None) for k, v in out.items()}
 
-          rust = parse_size_txt("/tmp/rust-artefacts/tmp/rust-artefacts/rust-size.txt")
+          rust = parse_size_txt("/tmp/rust-artefacts/packages/firmware-rust/rust-artefacts/rust-size.txt")
+          cpp  = parse_size_txt("/tmp/cpp-artefacts/cpp-size.txt")
 
           result = {
               "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
@@ -245,10 +273,7 @@ jobs:
                   "language": "C++17",
                   "toolchain": "xtensa-esp32-elf-gcc",
                   "opt_level": "-Os",
-                  "flash_bytes": None,
-                  "ram_bytes": None,
-                  "bss_bytes": None,
-                  "data_bytes": None,
+                  **cpp,
                   "build_time_s": None,
               },
               "rust_firmware": {

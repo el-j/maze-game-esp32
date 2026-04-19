@@ -21,6 +21,7 @@ export interface InputState extends TiltAxes {
 
 export function useInput(): InputState & {
   setDpad: (dir: keyof DpadState, pressed: boolean) => void;
+  setBtn: (pressed: boolean) => void;
 } {
   const heldKeys = useRef(new Set<string>());
   const deviceTilt = useRef<TiltAxes>({ ax: 0, ay: 0 });
@@ -30,6 +31,7 @@ export function useInput(): InputState & {
     left: false,
     right: false,
   });
+  const btnOverride = useRef(false);
 
   const [state, setState] = useState<InputState>({
     ax: 0,
@@ -51,7 +53,11 @@ export function useInput(): InputState & {
           : deviceTilt.current;
     const { ax, ay } = clampTilt(raw.ax, raw.ay);
     const btn =
-      keys.has(" ") || keys.has("Enter") || keys.has("b") || keys.has("B");
+      keys.has(" ") ||
+      keys.has("Enter") ||
+      keys.has("b") ||
+      keys.has("B") ||
+      btnOverride.current;
     setState((prev) => ({ ...prev, ax, ay, btn, dpad }));
   }, []);
 
@@ -87,10 +93,21 @@ export function useInput(): InputState & {
     };
   }, [recompute]);
 
-  const setDpad = useCallback((dir: keyof DpadState, pressed: boolean) => {
-    dpadRef.current = { ...dpadRef.current, [dir]: pressed };
-    recompute();
-  }, [recompute]);
+  const setDpad = useCallback(
+    (dir: keyof DpadState, pressed: boolean) => {
+      dpadRef.current = { ...dpadRef.current, [dir]: pressed };
+      recompute();
+    },
+    [recompute],
+  );
 
-  return { ...state, setDpad };
+  const setBtn = useCallback(
+    (pressed: boolean) => {
+      btnOverride.current = pressed;
+      recompute();
+    },
+    [recompute],
+  );
+
+  return { ...state, setDpad, setBtn };
 }
