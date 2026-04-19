@@ -16,11 +16,12 @@ name = "maze_game_lib"
 
 [features]
 default = []
-esp32-target = ["esp-hal", "esp-backtrace", "critical-section", "dep:esp-println"]
+esp32-target = ["esp-hal", "esp-backtrace", "critical-section", "dep:esp-println", "dep:fugit"]
 
 [dependencies]
 # Optional – only pulled when building for real hardware
 esp-hal       = { version = "0.23", features = ["esp32"], optional = true }
+fugit         = { version = "0.3", optional = true }
 esp-backtrace = { version = "0.15", features = ["esp32", "panic-handler", "exception-handler", "println"], optional = true }
 esp-println   = { version = "0.13", features = ["esp32", "uart"], default-features = false, optional = true }
 critical-section = { version = "1.1", optional = true }

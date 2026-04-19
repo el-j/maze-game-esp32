@@ -17,6 +17,7 @@ use esp_hal::{
     time::RateExtU32,
     Blocking,
 };
+use fugit::HertzU32;
 
 use maze_game_lib::{
     config,
@@ -25,6 +26,43 @@ use maze_game_lib::{
     game::GameEngine,
     motion::{Motion, Tilt},
 };
+
+// ── Channel-timer sentinel ────────────────────────────────────
+// Channel<'static, S> stores &'static dyn TimerIFace internally (for duty
+// resolution lookups).  Configuring a channel with &lstimer0 would borrow
+// lstimer0 for 'static, preventing us from also moving it into
+// HardwareBuzzer.  Instead we configure both channels with this zero-cost
+// static sentinel that advertises the correct duty resolution and timer
+// number; the *actual* frequency is controlled by lstimer0 which HardwareBuzzer
+// owns and reconfigures freely in play_tone().
+struct ChannelTimerSentinel;
+
+impl TimerIFace<LowSpeed> for ChannelTimerSentinel {
+    fn freq(&self) -> Option<HertzU32> {
+        None
+    }
+    fn configure(
+        &mut self,
+        _config: timer::config::Config<timer::LSClockSource>,
+    ) -> Result<(), timer::Error> {
+        Ok(())
+    }
+    fn is_configured(&self) -> bool {
+        true
+    }
+    fn duty(&self) -> Option<timer::config::Duty> {
+        Some(timer::config::Duty::Duty8Bit)
+    }
+    fn number(&self) -> timer::Number {
+        timer::Number::Timer0
+    }
+    fn frequency(&self) -> u32 {
+        5000
+    }
+}
+
+// A single 'static sentinel instance shared by all LEDC channels.
+static TIMER0_SENTINEL: ChannelTimerSentinel = ChannelTimerSentinel;
 
 // ── Hardware Display ──────────────────────────────────────────
 struct HardwareDisplay {
@@ -57,6 +95,9 @@ impl Display for HardwareDisplay {
 }
 
 // ── Hardware Buzzer ───────────────────────────────────────────
+// Owns the LEDC timer so it can reconfigure its frequency freely in
+// play_tone().  The channel is configured once (in main) with
+// TIMER0_SENTINEL so that no borrow of lstimer0 is held.
 struct HardwareBuzzer<'d> {
     channel: channel::Channel<'d, LowSpeed>,
     timer: timer::Timer<'d, LowSpeed>,
@@ -64,11 +105,14 @@ struct HardwareBuzzer<'d> {
 
 impl BuzzerHal for HardwareBuzzer<'_> {
     fn play_tone(&mut self, hz: u16) {
+        // Reconfigure the timer frequency – channel already linked to timer-0
+        // in hardware via the initial configure() call in main().
         let _ = self.timer.configure(timer::config::Config {
             duty: timer::config::Duty::Duty8Bit,
             clock_source: timer::LSClockSource::APBClk,
             frequency: (hz as u32).Hz(),
         });
+        // set_duty reads TIMER0_SENTINEL.duty() = Duty8Bit for the computation.
         let _ = self.channel.set_duty(50);
     }
     fn stop_tone(&mut self) {
@@ -146,6 +190,8 @@ fn main() -> ! {
     let mut ledc = Ledc::new(peripherals.LEDC);
     ledc.set_global_slow_clock(LSGlobalClkSource::APBClk);
 
+    // lstimer0 drives both the buzzer channel (frequency set per-tone in
+    // play_tone) and the motor channel (fixed ~5 kHz carrier).
     let mut lstimer0 = ledc.timer::<LowSpeed>(timer::Number::Timer0);
     lstimer0
         .configure(timer::config::Config {
@@ -155,11 +201,12 @@ fn main() -> ! {
         })
         .unwrap();
 
-    // Pre-configure LEDC channels and link them to lstimer0 before moving it.
+    // Configure both channels with the static sentinel so that lstimer0 is
+    // NOT borrowed and can be moved into HardwareBuzzer below.
     let mut buzzer_channel = ledc.channel(channel::Number::Channel0, peripherals.GPIO2);
     buzzer_channel
         .configure(channel::config::Config {
-            timer: &mut lstimer0,
+            timer: &TIMER0_SENTINEL,
             duty_pct: 0,
             pin_config: channel::config::PinConfig::PushPull,
         })
@@ -168,7 +215,7 @@ fn main() -> ! {
     let mut motor_channel = ledc.channel(channel::Number::Channel1, peripherals.GPIO4);
     motor_channel
         .configure(channel::config::Config {
-            timer: &mut lstimer0,
+            timer: &TIMER0_SENTINEL,
             duty_pct: 0,
             pin_config: channel::config::PinConfig::PushPull,
         })
