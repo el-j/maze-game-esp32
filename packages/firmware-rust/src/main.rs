@@ -223,4 +223,3 @@ fn main() -> ! {
         delay.delay_millis(20u32); // 50 Hz
     }
 }
-
