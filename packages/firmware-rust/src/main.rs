@@ -59,7 +59,7 @@ impl Display for HardwareDisplay {
 // ── Hardware Buzzer ───────────────────────────────────────────
 struct HardwareBuzzer<'d> {
     channel: channel::Channel<'d, LowSpeed>,
-    timer: &'d mut timer::Timer<'d, LowSpeed>,
+    timer: timer::Timer<'d, LowSpeed>,
 }
 
 impl BuzzerHal for HardwareBuzzer<'_> {
@@ -69,11 +69,7 @@ impl BuzzerHal for HardwareBuzzer<'_> {
             clock_source: timer::LSClockSource::APBClk,
             frequency: (hz as u32).Hz(),
         });
-        let _ = self.channel.configure(channel::config::Config {
-            timer: self.timer,
-            duty_pct: 50,
-            pin_config: channel::config::PinConfig::PushPull,
-        });
+        let _ = self.channel.set_duty(50);
     }
     fn stop_tone(&mut self) {
         let _ = self.channel.set_duty(0);
@@ -159,6 +155,25 @@ fn main() -> ! {
         })
         .unwrap();
 
+    // Pre-configure LEDC channels and link them to lstimer0 before moving it.
+    let mut buzzer_channel = ledc.channel(channel::Number::Channel0, peripherals.GPIO2);
+    buzzer_channel
+        .configure(channel::config::Config {
+            timer: &mut lstimer0,
+            duty_pct: 0,
+            pin_config: channel::config::PinConfig::PushPull,
+        })
+        .unwrap();
+
+    let mut motor_channel = ledc.channel(channel::Number::Channel1, peripherals.GPIO4);
+    motor_channel
+        .configure(channel::config::Config {
+            timer: &mut lstimer0,
+            duty_pct: 0,
+            pin_config: channel::config::PinConfig::PushPull,
+        })
+        .unwrap();
+
     // Build the engine
     let mut engine = GameEngine::new(
         HardwareDisplay {
@@ -184,16 +199,12 @@ fn main() -> ! {
             ],
         },
         {
-            let i2c = I2c::new(
-                peripherals.I2C0,
-                I2cConfig {
-                    frequency: 400u32.kHz(),
-                    ..I2cConfig::default()
-                },
-            )
-            .unwrap()
-            .with_sda(peripherals.GPIO21)
-            .with_scl(peripherals.GPIO22);
+            let mut i2c_cfg = I2cConfig::default();
+            i2c_cfg.frequency = 400u32.kHz();
+            let i2c = I2c::new(peripherals.I2C0, i2c_cfg)
+                .unwrap()
+                .with_sda(peripherals.GPIO21)
+                .with_scl(peripherals.GPIO22);
             let mut m = HardwareMotion {
                 i2c,
                 offset_x: 0.0,
@@ -204,11 +215,11 @@ fn main() -> ! {
         },
         Feedback::new(
             HardwareBuzzer {
-                channel: ledc.channel(channel::Number::Channel0, peripherals.GPIO2),
-                timer: &mut lstimer0,
+                channel: buzzer_channel,
+                timer: lstimer0,
             },
             HardwareMotor {
-                channel: ledc.channel(channel::Number::Channel1, peripherals.GPIO4),
+                channel: motor_channel,
             },
         ),
     );
