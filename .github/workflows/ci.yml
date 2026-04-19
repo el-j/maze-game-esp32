@@ -98,11 +98,11 @@ jobs:
       - name: Run all lib tests
         run: cargo test --lib
 
-  # ── 4. Rust firmware – ESP32 cross-compile (main branch only) ───────────────
+  # ── 4. Rust firmware – ESP32 cross-compile (PRs + main branch) ─────────────
   firmware-rust-esp32:
     name: Firmware Rust – ESP32 Cross-Compile
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     defaults:
       run:
         working-directory: packages/firmware-rust
@@ -114,6 +114,8 @@ jobs:
         run: cargo install espup --locked
 
       - name: Install Espressif Rust toolchain
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: espup install --export-file /tmp/espup-env.sh
 
       - name: Cache Espressif toolchain artefacts
@@ -275,3 +277,42 @@ jobs:
         with:
           name: comparison-json
           path: webapp/public/comparison.json
+
+  # ── 7. GitHub Release (main push only) ───────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [firmware-cpp, firmware-rust-esp32, firmware-cpp-tests, firmware-rust-tests, webapp]
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Rust ESP32 artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-esp32-artefacts
+          path: /tmp/release-artefacts
+        continue-on-error: true
+
+      - name: Create release tag
+        id: tag
+        run: |
+          TAG="release-$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "Build ${{ steps.tag.outputs.tag }}"
+          body: |
+            Automated release from commit ${{ github.sha }}.
+
+            ### Artefacts
+            - `maze-game-esp32-rust` – Rust firmware ELF for ESP32 (xtensa-esp32-none-elf, release build)
+          files: |
+            /tmp/release-artefacts/packages/firmware-rust/target/xtensa-esp32-none-elf/release/maze-game-esp32-rust
+          fail_on_unmatched_files: false
