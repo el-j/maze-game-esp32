@@ -17,6 +17,8 @@ export interface GameHookResult {
   motorDuty: number;
   setConfig: (cfg: Partial<PhysicsConfig>) => void;
   resetGame: () => void;
+  /** Reset the game and immediately advance to PLAYING state. */
+  startGame: () => void;
 }
 
 const TICK_MS = 20;
@@ -91,6 +93,15 @@ export function useGame(
     moduleRef.current?._wasmResetGame();
   }, []);
 
+  const startGame = useCallback(() => {
+    const m = moduleRef.current;
+    if (!m) return;
+    m._wasmResetGame();   // → TITLE state
+    m._wasmSetButton(1);  // press the start button
+    m._wasmTick();        // → PLAYING state
+    m._wasmSetButton(0);  // release
+  }, []);
+
   return {
     loadState,
     displayBuffer,
@@ -101,5 +112,6 @@ export function useGame(
     motorDuty,
     setConfig,
     resetGame,
+    startGame,
   };
 }

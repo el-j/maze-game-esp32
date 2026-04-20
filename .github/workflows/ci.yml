@@ -262,7 +262,7 @@ jobs:
                               out["ram_bytes"] += v
               return {k: (v or None) for k, v in out.items()}
 
-          rust = parse_size_txt("/tmp/rust-artefacts/packages/firmware-rust/rust-artefacts/rust-size.txt")
+          rust = parse_size_txt("/tmp/rust-artefacts/rust-artefacts/rust-size.txt")
           cpp  = parse_size_txt("/tmp/cpp-artefacts/cpp-size.txt")
 
           result = {

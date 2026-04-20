@@ -21,6 +21,7 @@ jest.mock("@/hooks/useGame", () => ({
     motorDuty: 0,
     setConfig: jest.fn(),
     resetGame: jest.fn(),
+    startGame: jest.fn(),
   }),
 }));
 

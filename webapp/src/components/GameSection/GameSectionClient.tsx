@@ -82,6 +82,41 @@ function StartButton({
   );
 }
 
+function PlayPrompt({
+  gameState,
+  loadState,
+  onStart,
+}: {
+  gameState: GameState;
+  loadState: "loading" | "ready" | "error";
+  onStart: () => void;
+}): JSX.Element | null {
+  if (loadState !== "ready") return null;
+  if (gameState === GameState.PLAYING || gameState === GameState.CRASHED)
+    return null;
+
+  if (gameState === GameState.GAMEOVER || gameState === GameState.VICTORY) {
+    return (
+      <button
+        onClick={onStart}
+        aria-label="Play Again"
+        className="w-full max-w-[344px] py-2.5 border border-amber-500 text-amber-400 rounded-xl text-sm font-mono font-bold bg-amber-900/20 active:bg-amber-900/40 transition-colors hover:border-amber-400"
+      >
+        {gameState === GameState.VICTORY ? "🏆 Play Again" : "▶ Play Again"}
+      </button>
+    );
+  }
+
+  // TITLE state – hint so users know how to start
+  return (
+    <p className="text-zinc-400 text-xs font-mono text-center">
+      ▶ Press <span className="border border-zinc-600 rounded px-1">SPACE</span>{" "}
+      or{" "}
+      <span className="border border-zinc-600 rounded px-1">START</span> to play
+    </p>
+  );
+}
+
 export default function GameSectionClient(): JSX.Element {
   const [config, setConfig] = useState<PhysicsConfig>(DEFAULT_CONFIG);
   const [fullscreen, setFullscreen] = useState(false);
@@ -102,6 +137,7 @@ export default function GameSectionClient(): JSX.Element {
     motorDuty,
     setConfig: pushConfig,
     resetGame,
+    startGame,
   } = useGame(input, config);
 
   const handleConfigChange = (cfg: PhysicsConfig) => {
@@ -237,6 +273,11 @@ export default function GameSectionClient(): JSX.Element {
               🎮 Enable Tilt Control
             </button>
           )}
+          <PlayPrompt
+            gameState={gameState}
+            loadState={loadState}
+            onStart={startGame}
+          />
           <DpadGrid onDpad={input.setDpad} btnSize="w-14 h-14" />
           <StartButton onBtn={input.setBtn} className="w-full max-w-[200px] py-3" />
         </div>
@@ -283,6 +324,13 @@ export default function GameSectionClient(): JSX.Element {
               className="w-full h-auto"
             />
           </div>
+
+          {/* Play / restart prompt */}
+          <PlayPrompt
+            gameState={gameState}
+            loadState={loadState}
+            onStart={startGame}
+          />
 
           {/* Keyboard hints – desktop only */}
           <div className="hidden md:flex flex-wrap gap-1.5 justify-center text-xs text-zinc-500 font-mono max-w-xs">
