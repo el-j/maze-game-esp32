@@ -25,12 +25,13 @@ jest.mock("@/hooks/useGame", () => ({
 }));
 
 jest.mock("@/hooks/useInput", () => ({
-  useInput: (): InputState & { setDpad: jest.Mock } => ({
+  useInput: (): InputState & { setDpad: jest.Mock; setBtn: jest.Mock } => ({
     ax: 0,
     ay: 0,
     btn: false,
     dpad: { up: false, down: false, left: false, right: false },
     setDpad: jest.fn(),
+    setBtn: jest.fn(),
   }),
 }));
 
