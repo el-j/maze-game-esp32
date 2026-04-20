@@ -81,6 +81,17 @@ describe("useGame", () => {
     expect(m._wasmResetGame).toHaveBeenCalled();
   });
 
+  it("startGame() resets then simulates a button press to reach PLAYING", async () => {
+    const { result } = renderHook(() => useGame(defaultInput, DEFAULT_CONFIG));
+    await waitFor(() => expect(result.current.loadState).toBe("ready"));
+    act(() => { result.current.startGame(); });
+    const m = await getResolvedModule();
+    expect(m._wasmResetGame).toHaveBeenCalled();
+    expect(m._wasmSetButton).toHaveBeenCalledWith(1);
+    expect(m._wasmTick).toHaveBeenCalled();
+    expect(m._wasmSetButton).toHaveBeenLastCalledWith(0);
+  });
+
   it("setConfig({sensitivity: 0.08}) calls _wasmSetSensitivity(0.08)", async () => {
     const { result } = renderHook(() => useGame(defaultInput, DEFAULT_CONFIG));
     await waitFor(() => expect(result.current.loadState).toBe("ready"));
