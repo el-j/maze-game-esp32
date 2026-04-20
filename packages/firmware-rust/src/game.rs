@@ -23,6 +23,10 @@ pub enum State {
     Crashed = 2,
     GameOver = 3,
     Victory = 4,
+    /// Brief non-blocking pause between levels (replaces the blocking
+    /// `delay(LEVELUP_PAUSE_MS)` that the C++ firmware originally used, which
+    /// is a no-op in the WASM browser build).
+    LevelUp = 5,
 }
 
 pub struct GameEngine<D: Display, M: Motion, F: FeedbackHal> {
@@ -40,6 +44,13 @@ pub struct GameEngine<D: Display, M: Motion, F: FeedbackHal> {
     vel_y: f32,
 
     crashed_at_ms: u64,
+    /// Timestamp set when entering `State::LevelUp`; advance to the next level
+    /// once `LEVELUP_PAUSE_MS` has elapsed.
+    levelup_at_ms: u64,
+    /// Earliest `now_ms` at which the next button press will be accepted.
+    /// Prevents a single held button from cascading through multiple state
+    /// transitions (GAMEOVER → TITLE → PLAYING in one press).
+    debounce_until_ms: u64,
     buf: DisplayBuffer,
 }
 
@@ -57,6 +68,8 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
             vel_x: 0.0,
             vel_y: 0.0,
             crashed_at_ms: 0,
+            levelup_at_ms: 0,
+            debounce_until_ms: 0,
             buf: DisplayBuffer::default(),
         };
         engine.respawn();
@@ -67,6 +80,9 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         self.state = State::Title;
         self.lives = config::STARTING_LIVES;
         self.level = 0;
+        self.crashed_at_ms = 0;
+        self.levelup_at_ms = 0;
+        self.debounce_until_ms = 0;
         self.respawn();
         self.feedback.play_boot(now_ms);
         self.buf.load(&FRAME_TITLE);
@@ -90,20 +106,22 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
             State::Title => self.tick_title(btn, now_ms),
             State::Playing => self.tick_playing(now_ms),
             State::Crashed => self.tick_crashed(now_ms),
-            State::GameOver => self.tick_gameover(btn),
-            State::Victory => self.tick_victory(btn),
+            State::GameOver => self.tick_gameover(btn, now_ms),
+            State::Victory => self.tick_victory(btn, now_ms),
+            State::LevelUp => self.tick_levelup(now_ms),
         }
     }
 
-    fn tick_title(&mut self, btn: bool, _now_ms: u64) {
+    fn tick_title(&mut self, btn: bool, now_ms: u64) {
         self.buf.load(&FRAME_TITLE);
         let buf = self.buf;
         self.display.draw(&buf);
-        if btn {
+        if btn && now_ms >= self.debounce_until_ms {
             self.lives = config::STARTING_LIVES;
             self.level = 0;
             self.respawn();
             self.state = State::Playing;
+            self.debounce_until_ms = now_ms + config::DEBOUNCE_MS;
         }
     }
 
@@ -164,8 +182,12 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
                 self.feedback.play_victory(now_ms);
                 self.state = State::Victory;
             } else {
+                // Begin the level-up pause.  The display retains the current
+                // frame (completed level with the player on the goal) until the
+                // pause expires and tick_levelup() calls respawn().
                 self.feedback.play_level_up(now_ms);
-                self.respawn();
+                self.levelup_at_ms = now_ms;
+                self.state = State::LevelUp;
             }
             return;
         }
@@ -200,22 +222,35 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         }
     }
 
-    fn tick_gameover(&mut self, btn: bool) {
+    fn tick_gameover(&mut self, btn: bool, now_ms: u64) {
         self.buf.load(&FRAME_GAMEOVER);
         let buf = self.buf;
         self.display.draw(&buf);
-        if btn {
+        if btn && now_ms >= self.debounce_until_ms {
             self.state = State::Title;
+            self.debounce_until_ms = now_ms + config::DEBOUNCE_MS;
         }
     }
 
-    fn tick_victory(&mut self, btn: bool) {
+    fn tick_victory(&mut self, btn: bool, now_ms: u64) {
         self.buf.load(&FRAME_VICTORY);
         let buf = self.buf;
         self.display.draw(&buf);
-        if btn {
+        if btn && now_ms >= self.debounce_until_ms {
             self.state = State::Title;
+            self.debounce_until_ms = now_ms + config::DEBOUNCE_MS;
         }
+    }
+
+    /// Non-blocking level-up pause: hold the completed level's last frame on
+    /// screen for `LEVELUP_PAUSE_MS` then spawn the player on the next level.
+    fn tick_levelup(&mut self, now_ms: u64) {
+        if now_ms.saturating_sub(self.levelup_at_ms) >= config::LEVELUP_PAUSE_MS as u64 {
+            self.respawn();
+            self.state = State::Playing;
+        }
+        // Display buffer retains the last rendered frame (completed level with
+        // player on goal) – no draw call needed here.
     }
 
     // ── Diagnostic getters ────────────────────────────────────
@@ -445,5 +480,44 @@ mod tests {
             }
         }
         assert!(e.feedback.crashes > 0);
+    }
+
+    #[test]
+    fn levelup_pause_delays_respawn() {
+        let mut e = flat_engine();
+        e.tick(true, 0); // start game
+        // Force the engine into STATE_LEVELUP as it would be after reaching a goal.
+        e.state = State::LevelUp;
+        e.levelup_at_ms = 0;
+        // Before the pause expires the state must not advance.
+        e.tick(false, (config::LEVELUP_PAUSE_MS as u64) - 1);
+        assert_eq!(e.state(), State::LevelUp, "should still be in LevelUp");
+        // After the pause expires the engine must transition to Playing.
+        e.tick(false, config::LEVELUP_PAUSE_MS as u64 + 1);
+        assert_eq!(e.state(), State::Playing, "should advance to Playing");
+    }
+
+    #[test]
+    fn button_debounce_prevents_immediate_state_cascade() {
+        let mut e = flat_engine();
+        // Press the button at t=0 to go from Title → Playing.
+        e.tick(true, 0);
+        assert_eq!(e.state(), State::Playing);
+        // Manually force back to Title and keep the button held.
+        e.state = State::Title;
+        // Within the debounce window the button must be ignored.
+        e.tick(true, config::DEBOUNCE_MS - 1);
+        assert_eq!(
+            e.state(),
+            State::Title,
+            "button press within debounce window should be ignored"
+        );
+        // After the debounce window expires the button is accepted again.
+        e.tick(true, config::DEBOUNCE_MS + 1);
+        assert_eq!(
+            e.state(),
+            State::Playing,
+            "button press after debounce window should be accepted"
+        );
     }
 }

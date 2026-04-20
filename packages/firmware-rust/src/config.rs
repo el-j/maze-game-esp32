@@ -29,4 +29,9 @@ pub const MOTOR_MS_VICTORY: u32 = 600;
 // ── Game Rules ───────────────────────────────────────────────
 pub const STARTING_LIVES: i32 = 3;
 pub const CRASH_DISPLAY_MS: u32 = 1_500;
+/// Duration of the non-blocking pause shown between levels.
 pub const LEVELUP_PAUSE_MS: u32 = 1_200;
+/// Minimum milliseconds between accepted button presses.
+/// Prevents a single held button from cascading through multiple state
+/// transitions (e.g. GAMEOVER → TITLE → PLAYING in one press).
+pub const DEBOUNCE_MS: u64 = 300;

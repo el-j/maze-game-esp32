@@ -14,6 +14,7 @@ const STATE_LABELS: Record<number, string> = {
   [GameState.TITLE]: "TITLE",
   [GameState.PLAYING]: "PLAYING",
   [GameState.CRASHED]: "CRASHED",
+  [GameState.LEVELUP]: "LEVEL UP",
   [GameState.GAMEOVER]: "GAME OVER",
   [GameState.VICTORY]: "VICTORY",
 };
@@ -92,7 +93,11 @@ function PlayPrompt({
   onStart: () => void;
 }): JSX.Element | null {
   if (loadState !== "ready") return null;
-  if (gameState === GameState.PLAYING || gameState === GameState.CRASHED)
+  if (
+    gameState === GameState.PLAYING ||
+    gameState === GameState.CRASHED ||
+    gameState === GameState.LEVELUP
+  )
     return null;
 
   if (gameState === GameState.GAMEOVER || gameState === GameState.VICTORY) {
