@@ -486,7 +486,7 @@ mod tests {
     fn levelup_pause_delays_respawn() {
         let mut e = flat_engine();
         e.tick(true, 0); // start game
-        // Force the engine into STATE_LEVELUP as it would be after reaching a goal.
+                         // Force the engine into STATE_LEVELUP as it would be after reaching a goal.
         e.state = State::LevelUp;
         e.levelup_at_ms = 0;
         // Before the pause expires the state must not advance.
