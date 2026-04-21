@@ -126,7 +126,7 @@ export function useGame(
           // Read display and diagnostic state only when at least one tick ran.
           if (ticked) {
             m._wasmGetDisplay(ptrRef.current);
-            const slice = m.HEAPU8.slice(ptrRef.current, ptrRef.current + 8);
+            const slice = m.HEAPU8.slice(ptrRef.current, ptrRef.current + DISPLAY_BUFFER_BYTES);
             setDisplayBuffer(slice);
             setGameState(m._wasmGetState() as GameState);
             setLives(m._wasmGetLives());

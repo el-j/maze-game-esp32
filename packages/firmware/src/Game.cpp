@@ -248,7 +248,7 @@ static void handleVictory(bool btn) {
 // The display buffer is not redrawn here so the LED matrix continues to show
 // the completed level's final frame during the pause (player on the goal).
 static void handleLevelUp() {
-  if (millis() - levelUpAt >= (unsigned long)LEVELUP_PAUSE_MS) {
+  if (millis() - levelUpAt >= LEVELUP_PAUSE_MS) {
     respawn();
     state = STATE_PLAYING;
   }
