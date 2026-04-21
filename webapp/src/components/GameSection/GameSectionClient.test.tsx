@@ -22,7 +22,7 @@ let mockGameResult: GameHookResult = {
 };
 
 jest.mock("@/hooks/useGame", () => ({
-  GameState: { TITLE: 0, PLAYING: 1, CRASHED: 2, GAMEOVER: 3, VICTORY: 4 },
+  GameState: { TITLE: 0, PLAYING: 1, CRASHED: 2, GAMEOVER: 3, VICTORY: 4, LEVELUP: 5 },
   useGame: (): GameHookResult => mockGameResult,
 }));
 

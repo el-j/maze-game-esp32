@@ -21,7 +21,22 @@ export interface GameHookResult {
   startGame: () => void;
 }
 
-const TICK_MS = 20;
+/** Byte length of the display buffer shared with WASM (8 rows × 1 byte each). */
+const DISPLAY_BUFFER_BYTES = 8;
+
+/** Fixed physics step size in milliseconds – matches the hardware 50 Hz loop. */
+export const TICK_MS = 20;
+
+/**
+ * Maximum physics steps executed per animation frame.
+ *
+ * Browsers throttle `requestAnimationFrame` while a tab is hidden and resume
+ * it when the tab becomes visible again.  Without a cap, the first frame after
+ * a long absence would accumulate hundreds of physics ticks (the ball would
+ * teleport across the maze).  Five steps cap the burst to 100 ms worth of
+ * catch-up – enough to stay smooth while preventing runaway simulation.
+ */
+const MAX_TICKS_PER_FRAME = 5;
 
 export function useGame(
   input: InputState,
@@ -43,36 +58,95 @@ export function useGame(
   configRef.current = config;
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+    // rafId = 0 is an invalid handle; cancelAnimationFrame(0) is a safe no-op.
+    let rafId = 0;
+    let mounted = true;
+    // Timestamp of the previous animation frame (null until first frame fires).
+    let lastTime: number | null = null;
+    // Accumulated unprocessed time in milliseconds.
+    let accumulator = 0;
+
     audioPlayer.init();
     audioPlayer.registerWasmCallbacks();
 
     loadGameModule()
       .then((m) => {
+        if (!mounted) return;
         moduleRef.current = m;
-        ptrRef.current = m._malloc(8);
+        ptrRef.current = m._malloc(DISPLAY_BUFFER_BYTES);
         m._wasmInit();
         setLoadState("ready");
 
-        interval = setInterval(() => {
+        /**
+         * Animation-frame callback that drives the fixed-step physics loop.
+         *
+         * Using requestAnimationFrame instead of setInterval solves two problems:
+         *  1. setInterval continues to queue callbacks when the browser tab is
+         *     hidden (throttled to ~1 Hz) and fires them all in a burst when the
+         *     tab regains focus, running dozens of physics ticks back-to-back and
+         *     making the game run at 10–50× normal speed.
+         *  2. setInterval does not align with the display refresh cycle, causing
+         *     visible tearing on high-refresh-rate monitors.
+         *
+         * With rAF the browser pauses callbacks entirely while the tab is hidden
+         * and resumes at the normal rate when it becomes visible again.  The
+         * MAX_TICKS_PER_FRAME cap prevents a burst of catch-up ticks on resume.
+         */
+        const frame = (timestamp: number) => {
+          if (!mounted) return;
+
+          if (lastTime === null) {
+            // First frame: initialise lastTime without running any ticks.
+            lastTime = timestamp;
+            rafId = requestAnimationFrame(frame);
+            return;
+          }
+
+          const elapsed = timestamp - lastTime;
+          lastTime = timestamp;
+
+          // Accumulate elapsed real time; cap to prevent spiral-of-death after
+          // background throttling or heavy CPU load.
+          accumulator += elapsed;
+          if (accumulator > TICK_MS * MAX_TICKS_PER_FRAME) {
+            accumulator = TICK_MS * MAX_TICKS_PER_FRAME;
+          }
+
+          // Run as many fixed physics steps as the elapsed time demands.
           const { ax, ay, btn } = inputRef.current;
-          m._wasmSetTiltExport(ax, ay);
-          m._wasmSetButton(btn ? 1 : 0);
-          m._wasmTick();
-          m._wasmGetDisplay(ptrRef.current);
-          const slice = m.HEAPU8.slice(ptrRef.current, ptrRef.current + 8);
-          setDisplayBuffer(slice);
-          setGameState(m._wasmGetState() as GameState);
-          setLives(m._wasmGetLives());
-          setLevel(m._wasmGetLevel());
-          setNoteHz(m._wasmNoteHz());
-          setMotorDuty(m._wasmMotorDuty());
-        }, TICK_MS);
+          let ticked = false;
+          while (accumulator >= TICK_MS) {
+            m._wasmSetTiltExport(ax, ay);
+            m._wasmSetButton(btn ? 1 : 0);
+            m._wasmTick();
+            accumulator -= TICK_MS;
+            ticked = true;
+          }
+
+          // Read display and diagnostic state only when at least one tick ran.
+          if (ticked) {
+            m._wasmGetDisplay(ptrRef.current);
+            const slice = m.HEAPU8.slice(ptrRef.current, ptrRef.current + DISPLAY_BUFFER_BYTES);
+            setDisplayBuffer(slice);
+            setGameState(m._wasmGetState() as GameState);
+            setLives(m._wasmGetLives());
+            setLevel(m._wasmGetLevel());
+            setNoteHz(m._wasmNoteHz());
+            setMotorDuty(m._wasmMotorDuty());
+          }
+
+          rafId = requestAnimationFrame(frame);
+        };
+
+        rafId = requestAnimationFrame(frame);
       })
-      .catch(() => setLoadState("error"));
+      .catch(() => {
+        if (mounted) setLoadState("error");
+      });
 
     return () => {
-      if (interval !== undefined) clearInterval(interval);
+      mounted = false;
+      cancelAnimationFrame(rafId);
       if (moduleRef.current && ptrRef.current) {
         moduleRef.current._free(ptrRef.current);
       }
@@ -96,6 +170,11 @@ export function useGame(
   const startGame = useCallback(() => {
     const m = moduleRef.current;
     if (!m) return;
+    // This is a one-shot state-transition helper, not a physics step.
+    // It resets the engine to TITLE then immediately presses+releases the
+    // start button to reach PLAYING.  The manual tick here is intentional
+    // and does not adjust the rAF accumulator; the next frame will include
+    // only the time that elapses after this call returns.
     m._wasmResetGame();   // → TITLE state
     m._wasmSetButton(1);  // press the start button
     m._wasmTick();        // → PLAYING state

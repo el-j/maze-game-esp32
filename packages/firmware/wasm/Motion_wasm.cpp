@@ -28,6 +28,10 @@ extern "C" void wasmSetTilt(float ax, float ay) {
 void motionInit()      {}   // no I²C to initialise
 void motionCalibrate() {}   // no sensor offsets to measure
 
+// In the WASM build tilt values are already cached by wasmSetTilt(); this
+// is a no-op that satisfies the motionUpdate() call in Game.cpp.
+void motionUpdate()    {}
+
 float motionGetAx() {
   return (fabsf(_ax) < DEADZONE) ? 0.0f : _ax;
 }

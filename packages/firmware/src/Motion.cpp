@@ -27,6 +27,13 @@ static float lastRawAx = 0.0f;
 static float lastRawAy = 0.0f;
 static float lastRawAz = 0.0f;
 
+// Cached calibrated axes from the most recent motionUpdate() call.
+// Accessing these from motionGetAx()/motionGetAy() avoids reading the sensor
+// twice per game tick (once for X, once for Y) which would produce values
+// from two different sensor samples and waste I2C bandwidth.
+static float cachedAx = 0.0f;
+static float cachedAy = 0.0f;
+
 // ── Helper: raw axes (before offset subtraction) ────────────
 // The MPU6050 is mounted on the GY-521 break-out board with its
 // X/Y axes rotated 90° relative to the maze grid.  We swap and
@@ -107,20 +114,26 @@ void motionCalibrate() {
 }
 
 float motionGetAx() {
-  if (!mpuReady) return 0.0f;
-  float ax, ay;
-  rawAxes(ax, ay);
-  float calibrated = ax - offsetX;
-  // Apply deadzone: ignore tiny readings caused by hand tremor
-  return (fabsf(calibrated) < DEADZONE) ? 0.0f : calibrated;
+  return (fabsf(cachedAx) < DEADZONE) ? 0.0f : cachedAx;
 }
 
 float motionGetAy() {
-  if (!mpuReady) return 0.0f;
+  return (fabsf(cachedAy) < DEADZONE) ? 0.0f : cachedAy;
+}
+
+// Read both calibrated axes from the sensor in a single I2C transaction and
+// cache them.  Game.cpp calls this once at the start of each physics tick;
+// subsequent calls to motionGetAx() / motionGetAy() return the cached values
+// without additional sensor reads, keeping X and Y temporally consistent.
+void motionUpdate() {
+  if (!mpuReady) {
+    cachedAx = cachedAy = 0.0f;
+    return;
+  }
   float ax, ay;
   rawAxes(ax, ay);
-  float calibrated = ay - offsetY;
-  return (fabsf(calibrated) < DEADZONE) ? 0.0f : calibrated;
+  cachedAx = ax - offsetX;
+  cachedAy = ay - offsetY;
 }
 
 void motionGetLastRaw(float &ax, float &ay, float &az) {

@@ -156,6 +156,10 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
             } else {
                 self.buzzer.stop_tone();
                 self.active_hz = 0;
+                // Reset index defensively so any future start_melody() begins at 0
+                // and no out-of-bounds index is observable between melody end and
+                // the next start_melody() call.
+                self.melody_idx = 0;
                 self.melody = &[];
                 break;
             }
@@ -192,6 +196,13 @@ impl<B: BuzzerHal, M: MotorHal> Feedback<B, M> {
 }
 
 // ── Feedback HAL trait (used by GameEngine) ─────────────────
+//
+// `GameEngine<D, M, F>` is generic over `F: FeedbackHal` rather than
+// the concrete `Feedback<B, M>` type.  This blanket impl bridges the gap:
+// it lets callers construct `GameEngine::new(…, Feedback::new(buzzer, motor))`
+// without forcing `BuzzerHal` and `MotorHal` bounds to leak into `GameEngine`'s
+// own signature.  Every method delegates to the identically-named inherent
+// function; no logic lives here.
 pub trait FeedbackHal {
     fn update(&mut self, now_ms: u64);
     fn play_boot(&mut self, now_ms: u64);

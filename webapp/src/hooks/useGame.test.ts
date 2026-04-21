@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG } from "@/lib/config";
 import type { InputState } from "./useInput";
 
 jest.mock("@/lib/wasm", () => ({
-  GameState: { TITLE: 0, PLAYING: 1, CRASHED: 2, GAMEOVER: 3, VICTORY: 4 },
+  GameState: { TITLE: 0, PLAYING: 1, CRASHED: 2, GAMEOVER: 3, VICTORY: 4, LEVELUP: 5 },
   loadGameModule: jest.fn().mockResolvedValue({
     _malloc: jest.fn().mockReturnValue(0),
     _free: jest.fn(),

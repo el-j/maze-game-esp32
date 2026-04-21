@@ -9,8 +9,16 @@ pub struct Tilt {
     pub ay: f32,
 }
 
-/// Motion sensor trait.  The game engine calls `read()` each tick.
+/// Motion sensor abstraction.
+///
+/// The game engine calls [`Motion::read`] once per tick to obtain a
+/// calibrated two-axis tilt reading.  On real hardware this issues an
+/// I²C transaction to the MPU6050; in unit tests a [`mock::MockMotion`]
+/// returns a fixed or scripted value without any hardware dependency.
 pub trait Motion {
+    /// Return the latest calibrated tilt reading.
+    ///
+    /// Positive `ax` = board tilted right; positive `ay` = board tilted down.
     fn read(&mut self) -> Tilt;
 }
 

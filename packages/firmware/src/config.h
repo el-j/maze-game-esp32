@@ -81,3 +81,10 @@ constexpr uint16_t MOTOR_MS_VICTORY = 600;
 // ── Game Rules ──────────────────────────────────────────────
 constexpr int CRASH_DISPLAY_MS = 1500; // ms to show crash screen
 constexpr int LEVELUP_PAUSE_MS = 1200; // ms pause before next level
+
+// Minimum ms between accepted button presses.  Prevents a single long hold
+// from triggering multiple state transitions in a row (e.g. going from
+// GAMEOVER → TITLE → PLAYING before the player releases the button).
+// Previously this was done with blocking delay() calls, which are no-ops in
+// the WASM browser build; this millis()-based constant works correctly in both.
+constexpr unsigned long DEBOUNCE_MS = 300;

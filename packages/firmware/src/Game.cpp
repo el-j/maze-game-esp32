@@ -15,7 +15,8 @@ enum GameState {
   STATE_PLAYING,
   STATE_CRASHED,
   STATE_GAMEOVER,
-  STATE_VICTORY
+  STATE_VICTORY,
+  STATE_LEVELUP   // brief pause between levels (replaces blocking delay)
 };
 
 static GameState state       = STATE_TITLE;
@@ -33,6 +34,20 @@ static float velY    = 0.0f;
 // ── Timing State ────────────────────────────────────────────
 // Used for the timer-based crash screen (no blocking delay).
 static unsigned long crashedAt = 0;
+
+// Timestamp of the most recent level completion.  STATE_LEVELUP waits for
+// LEVELUP_PAUSE_MS before advancing to STATE_PLAYING on the next level.
+// Using millis() instead of blocking delay() keeps the loop non-blocking and
+// makes the timing correct in both firmware and WASM builds (delay() is a
+// no-op stub in the browser).
+static unsigned long levelUpAt = 0;
+
+// Earliest millis() at which the next button press will be accepted.
+// Prevents a single long button hold from triggering multiple state
+// transitions in sequence (e.g. GAMEOVER → TITLE → PLAYING in one press).
+// This replaces the previous blocking delay(300) calls which are no-ops
+// in the WASM browser build.
+static unsigned long debounceUntil = 0;
 
 // ── Pre-defined display frames ──────────────────────────────
 // Each array is a complete 8-row frame for a screen state.
@@ -90,18 +105,24 @@ static void respawn() {
 static void handleTitle(bool btn) {
   displayDraw(FRAME_TITLE);
 
-  if (btn) {
+  if (btn && millis() >= debounceUntil) {
     // Reset everything and start the first level
     lives = STARTING_LIVES;
     level = 0;
     respawn();
     state = STATE_PLAYING;
-    delay(300); // simple debounce: ignore button for 300 ms
+    // Suppress the button for DEBOUNCE_MS so a long hold cannot immediately
+    // skip through PLAYING into a crash state.
+    debounceUntil = millis() + DEBOUNCE_MS;
   }
 }
 
 static void handlePlaying() {
   // ── 1. Read tilt ────────────────────────────────────────
+  // motionUpdate() reads both axes from the MPU6050 in a single I2C
+  // transaction and caches them.  motionGetAx/Ay() then return the cached
+  // values so X and Y are always from the same sensor sample.
+  motionUpdate();
   float ax = motionGetAx(); // positive = tilt right
   float ay = motionGetAy(); // positive = tilt down
 
@@ -160,10 +181,14 @@ static void handlePlaying() {
       feedbackPlayVictory();
       state = STATE_VICTORY;
     } else {
-      // Advance to the next level
+      // Begin the level-up pause.  The display retains the current frame
+      // (completed level with the player sitting on the goal) for the
+      // duration.  Using millis() instead of blocking delay() keeps the
+      // loop non-blocking and ensures correct timing in both firmware and
+      // WASM browser builds where delay() is a no-op stub.
       feedbackPlayLevelUp();
-      respawn();
-      delay(LEVELUP_PAUSE_MS); // Brief celebratory pause
+      levelUpAt = millis();
+      state = STATE_LEVELUP;
     }
     return;
   }
@@ -205,17 +230,27 @@ static void handleCrashed() {
 
 static void handleGameover(bool btn) {
   displayDraw(FRAME_GAMEOVER);
-  if (btn) {
+  if (btn && millis() >= debounceUntil) {
     state = STATE_TITLE;
-    delay(300);
+    debounceUntil = millis() + DEBOUNCE_MS;
   }
 }
 
 static void handleVictory(bool btn) {
   displayDraw(FRAME_VICTORY);
-  if (btn) {
+  if (btn && millis() >= debounceUntil) {
     state = STATE_TITLE;
-    delay(300);
+    debounceUntil = millis() + DEBOUNCE_MS;
+  }
+}
+
+// Wait for LEVELUP_PAUSE_MS to elapse, then spawn the player on the new level.
+// The display buffer is not redrawn here so the LED matrix continues to show
+// the completed level's final frame during the pause (player on the goal).
+static void handleLevelUp() {
+  if (millis() - levelUpAt >= LEVELUP_PAUSE_MS) {
+    respawn();
+    state = STATE_PLAYING;
   }
 }
 
@@ -225,6 +260,9 @@ void gameInit() {
   state = STATE_TITLE;
   lives = STARTING_LIVES;
   level = 0;
+  crashedAt     = 0;
+  levelUpAt     = 0;
+  debounceUntil = 0;
   respawn();
 }
 
@@ -235,6 +273,7 @@ void gameUpdate(bool btn) {
     case STATE_CRASHED:  handleCrashed();     break;
     case STATE_GAMEOVER: handleGameover(btn); break;
     case STATE_VICTORY:  handleVictory(btn);  break;
+    case STATE_LEVELUP:  handleLevelUp();     break;
   }
 }
 

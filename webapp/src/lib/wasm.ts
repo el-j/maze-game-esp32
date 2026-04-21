@@ -4,6 +4,7 @@ export enum GameState {
   CRASHED = 2,
   GAMEOVER = 3,
   VICTORY = 4,
+  LEVELUP = 5,
 }
 
 export interface GameModule {

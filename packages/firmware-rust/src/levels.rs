@@ -1,15 +1,7 @@
 //! Maze level data – port of packages/firmware/src/Levels.h.
 //! Each level is 8 bytes (one per row); bit 7 = column 0.
 //! 1 = wall, 0 = open path.
-//!
-//! **Level 1 deviation from C++ source**: The original C++ Level 1 data
-//! (`[0xFF, 0x81, 0xFF, 0x81, 0xFF, 0x81, 0xFD, 0xFF]`) creates three
-//! horizontally isolated corridors with no vertical connections between rows,
-//! making the start cell (1,1) unreachable from the goal cell (6,6) via
-//! step-by-step pathfinding.  The Rust version uses
-//! `[0xFF, 0x81, 0xBF, 0x81, 0xBF, 0x81, 0xFD, 0xFF]` which adds left-side
-//! vertical connectors (col 1 open in rows 2 and 4), creating a proper
-//! connected C-shape that satisfies the BFS solvability invariant.
+//! All level data is identical to the C++ source.
 
 pub const NUM_LEVELS: usize = 3;
 
@@ -35,6 +27,11 @@ pub const START_X: [usize; NUM_LEVELS] = [1, 1, 1];
 pub const START_Y: [usize; NUM_LEVELS] = [1, 1, 1];
 pub const GOAL_X: [usize; NUM_LEVELS] = [6, 6, 6];
 pub const GOAL_Y: [usize; NUM_LEVELS] = [6, 6, 6];
+// Start (1, 1) = top-left corner pocket; Goal (6, 6) = bottom-right corner pocket.
+// All three current levels share these coordinates as a deliberate design
+// constraint: the player always knows where they start and where they must
+// go regardless of which level they are on.  When adding new levels keep
+// both the start and goal cells as open paths (bit = 0 in the level data).
 
 /// Returns true if the cell (col, row) is a wall in the given level.
 /// Out-of-bounds coordinates are always walls.
