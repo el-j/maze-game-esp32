@@ -27,6 +27,11 @@ pub const START_X: [usize; NUM_LEVELS] = [1, 1, 1];
 pub const START_Y: [usize; NUM_LEVELS] = [1, 1, 1];
 pub const GOAL_X: [usize; NUM_LEVELS] = [6, 6, 6];
 pub const GOAL_Y: [usize; NUM_LEVELS] = [6, 6, 6];
+// Start (1, 1) = top-left corner pocket; Goal (6, 6) = bottom-right corner pocket.
+// All three current levels share these coordinates as a deliberate design
+// constraint: the player always knows where they start and where they must
+// go regardless of which level they are on.  When adding new levels keep
+// both the start and goal cells as open paths (bit = 0 in the level data).
 
 /// Returns true if the cell (col, row) is a wall in the given level.
 /// Out-of-bounds coordinates are always walls.

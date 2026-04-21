@@ -1,7 +1,7 @@
 //! 8×8 LED matrix display buffer and hardware abstraction.
 
 /// Pure 8-byte frame buffer.  Bit 7 of each byte = column 0 (left).
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct DisplayBuffer {
     pub rows: [u8; 8],
 }

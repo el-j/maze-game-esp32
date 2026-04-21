@@ -63,8 +63,11 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
             state: State::Title,
             lives: config::STARTING_LIVES,
             level: 0,
-            player_x: 1.0,
-            player_y: 1.0,
+            // player_x / player_y / vel_x / vel_y are placeholder zeros here;
+            // respawn() below immediately overwrites them with the correct
+            // start coordinates for level 0.
+            player_x: 0.0,
+            player_y: 0.0,
             vel_x: 0.0,
             vel_y: 0.0,
             crashed_at_ms: 0,
@@ -76,6 +79,15 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         engine
     }
 
+    /// Reset the engine to its initial state and play the boot jingle.
+    ///
+    /// # Intentional divergence from C++
+    ///
+    /// In the C++ codebase `gameInit()` does **not** trigger audio; the boot
+    /// jingle is started by `main.cpp::setup()` after `gameInit()` returns.
+    /// Here the call is incorporated into `init()` so that any caller —
+    /// including the WASM host and unit tests — gets a fully self-contained
+    /// initialisation without needing to know about the audio subsystem.
     pub fn init(&mut self, now_ms: u64) {
         self.state = State::Title;
         self.lives = config::STARTING_LIVES;
@@ -216,7 +228,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
         }
         let buf = self.buf;
         self.display.draw(&buf);
-        if elapsed >= config::CRASH_DISPLAY_MS as u64 {
+        if elapsed >= config::CRASH_DISPLAY_MS {
             self.respawn();
             self.state = State::Playing;
         }
@@ -245,7 +257,7 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     /// Non-blocking level-up pause: hold the completed level's last frame on
     /// screen for `LEVELUP_PAUSE_MS` then spawn the player on the next level.
     fn tick_levelup(&mut self, now_ms: u64) {
-        if now_ms.saturating_sub(self.levelup_at_ms) >= config::LEVELUP_PAUSE_MS as u64 {
+        if now_ms.saturating_sub(self.levelup_at_ms) >= config::LEVELUP_PAUSE_MS {
             self.respawn();
             self.state = State::Playing;
         }
@@ -254,18 +266,23 @@ impl<D: Display, M: Motion, F: FeedbackHal> GameEngine<D, M, F> {
     }
 
     // ── Diagnostic getters ────────────────────────────────────
+    #[must_use]
     pub fn state(&self) -> State {
         self.state
     }
+    #[must_use]
     pub fn lives(&self) -> i32 {
         self.lives
     }
+    #[must_use]
     pub fn level(&self) -> usize {
         self.level
     }
+    #[must_use]
     pub fn player_x(&self) -> f32 {
         self.player_x
     }
+    #[must_use]
     pub fn player_y(&self) -> f32 {
         self.player_y
     }
@@ -285,6 +302,8 @@ mod tests {
         fn clear(&mut self) {}
     }
 
+    /// Captures the last frame written by `draw()` so rendering tests can
+    /// inspect what would appear on the physical LED matrix.
     struct RecordingDisplay {
         pub last: DisplayBuffer,
     }
@@ -352,6 +371,56 @@ mod tests {
     }
 
     // ── Tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn title_tick_draws_title_frame() {
+        let mut e = GameEngine::new(
+            RecordingDisplay::new(),
+            MockMotion {
+                tilt: Tilt { ax: 0.0, ay: 0.0 },
+            },
+            NullFeedback,
+        );
+        e.tick(false, 0);
+        assert_eq!(
+            e.display.last.rows, FRAME_TITLE,
+            "tick_title must render FRAME_TITLE"
+        );
+    }
+
+    #[test]
+    fn gameover_tick_draws_gameover_frame() {
+        let mut e = GameEngine::new(
+            RecordingDisplay::new(),
+            MockMotion {
+                tilt: Tilt { ax: 0.0, ay: 0.0 },
+            },
+            NullFeedback,
+        );
+        e.state = State::GameOver;
+        e.tick(false, 0);
+        assert_eq!(
+            e.display.last.rows, FRAME_GAMEOVER,
+            "tick_gameover must render FRAME_GAMEOVER"
+        );
+    }
+
+    #[test]
+    fn victory_tick_draws_victory_frame() {
+        let mut e = GameEngine::new(
+            RecordingDisplay::new(),
+            MockMotion {
+                tilt: Tilt { ax: 0.0, ay: 0.0 },
+            },
+            NullFeedback,
+        );
+        e.state = State::Victory;
+        e.tick(false, 0);
+        assert_eq!(
+            e.display.last.rows, FRAME_VICTORY,
+            "tick_victory must render FRAME_VICTORY"
+        );
+    }
 
     #[test]
     fn initial_state_is_title() {
@@ -457,7 +526,7 @@ mod tests {
                          // Force crashed state
         e.state = State::Crashed;
         e.crashed_at_ms = 0;
-        e.tick(false, config::CRASH_DISPLAY_MS as u64 + 1);
+        e.tick(false, config::CRASH_DISPLAY_MS + 1);
         assert_eq!(e.state(), State::Playing);
     }
 
@@ -490,10 +559,10 @@ mod tests {
         e.state = State::LevelUp;
         e.levelup_at_ms = 0;
         // Before the pause expires the state must not advance.
-        e.tick(false, (config::LEVELUP_PAUSE_MS as u64) - 1);
+        e.tick(false, config::LEVELUP_PAUSE_MS - 1);
         assert_eq!(e.state(), State::LevelUp, "should still be in LevelUp");
         // After the pause expires the engine must transition to Playing.
-        e.tick(false, config::LEVELUP_PAUSE_MS as u64 + 1);
+        e.tick(false, config::LEVELUP_PAUSE_MS + 1);
         assert_eq!(e.state(), State::Playing, "should advance to Playing");
     }
 

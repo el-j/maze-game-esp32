@@ -21,6 +21,9 @@ export interface GameHookResult {
   startGame: () => void;
 }
 
+/** Byte length of the display buffer shared with WASM (8 rows × 1 byte each). */
+const DISPLAY_BUFFER_BYTES = 8;
+
 /** Fixed physics step size in milliseconds – matches the hardware 50 Hz loop. */
 export const TICK_MS = 20;
 
@@ -70,7 +73,7 @@ export function useGame(
       .then((m) => {
         if (!mounted) return;
         moduleRef.current = m;
-        ptrRef.current = m._malloc(8);
+        ptrRef.current = m._malloc(DISPLAY_BUFFER_BYTES);
         m._wasmInit();
         setLoadState("ready");
 
@@ -167,6 +170,11 @@ export function useGame(
   const startGame = useCallback(() => {
     const m = moduleRef.current;
     if (!m) return;
+    // This is a one-shot state-transition helper, not a physics step.
+    // It resets the engine to TITLE then immediately presses+releases the
+    // start button to reach PLAYING.  The manual tick here is intentional
+    // and does not adjust the rAF accumulator; the next frame will include
+    // only the time that elapses after this call returns.
     m._wasmResetGame();   // → TITLE state
     m._wasmSetButton(1);  // press the start button
     m._wasmTick();        // → PLAYING state
